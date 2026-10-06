@@ -1,0 +1,115 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+  Design system dn.ia — superfície de produto (dark, premium, técnico).
+  Tokens extraídos do brand guidelines oficial e convertidos pra HSL no
+  formato que o shadcn/ui e o Tailwind consomem via hsl(var(--token)).
+
+  Hex de referência da marca (NÃO usar hex direto em componente):
+    #0A0A0A fundo · #FAFAFA texto · #3D61FF azul primário
+    #8DA2FF azul claro · #1F3BC2 azul escuro · #8B5CF6 violeta
+    #E41A11 vermelho · #22C55E verde · #F59E0B âmbar
+*/
+
+@layer base {
+  :root {
+    --background: 0 0% 3.9%;
+    --foreground: 0 0% 98%;
+
+    --card: 0 0% 6%;
+    --card-foreground: 0 0% 98%;
+
+    --popover: 0 0% 7%;
+    --popover-foreground: 0 0% 98%;
+
+    /* Azul da marca — única cor de ação e destaque */
+    --primary: 229 100% 62%;
+    --primary-foreground: 0 0% 100%;
+    --primary-light: 229 100% 78%;
+    --primary-dark: 230 72% 44%;
+
+    --violet: 258 90% 66%;
+
+    /* Vermelho contido — só ação destrutiva e erro */
+    --destructive: 3 86% 48%;
+    --destructive-foreground: 0 0% 100%;
+
+    --success: 142 71% 45%;
+    --warning: 38 92% 50%;
+
+    --muted: 0 0% 11%;
+    --muted-foreground: 0 0% 58%;
+
+    --accent: 0 0% 12%;
+    --accent-foreground: 0 0% 98%;
+
+    --border: 0 0% 13%;
+    --border-subtle: 0 0% 9%;
+    --input: 0 0% 13%;
+    --ring: 229 100% 62%;
+
+    --radius: 0.75rem;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  body {
+    /*
+      Fundo estratificado — nunca preto chapado. É regra de marca:
+      duas auroras sutis (azul e violeta) sobre o #0A0A0A.
+    */
+    background:
+      radial-gradient(ellipse 80% 60% at top left, rgba(61, 97, 255, 0.07) 0%, transparent 60%),
+      radial-gradient(ellipse 60% 40% at top right, rgba(139, 92, 246, 0.05) 0%, transparent 60%),
+      hsl(var(--background));
+    background-attachment: fixed;
+    @apply text-foreground font-sans antialiased;
+    font-size: 14px;
+    line-height: 1.6;
+  }
+
+  /* Números de métrica alinham em coluna sem dançar */
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+@layer components {
+  /*
+    Card da marca: fundo glass quase imperceptível + hairline azul no topo.
+    O hairline é a assinatura visual — todo painel tem.
+  */
+  .panel {
+    @apply relative overflow-hidden rounded-lg border border-border-subtle;
+    background: rgba(255, 255, 255, 0.022);
+  }
+
+  .panel::before {
+    content: "";
+    @apply absolute left-0 right-0 top-0 h-px;
+    background: linear-gradient(90deg, transparent, rgba(61, 97, 255, 0.35), transparent);
+  }
+
+  /* Label/metadado: mono, maiúsculo, espaçado. Nunca texto corrido em mono. */
+  .eyebrow {
+    @apply font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground;
+  }
+
+  .stat-number {
+    @apply font-display text-4xl font-bold tracking-tight tabular;
+  }
+
+  /* Elevação + glow azul no hover, padrão de card interativo da marca */
+  .panel-hover {
+    @apply transition-all duration-200;
+  }
+
+  .panel-hover:hover {
+    @apply -translate-y-px border-primary/30;
+    box-shadow: 0 8px 24px -12px rgba(61, 97, 255, 0.35);
+  }
+}
