@@ -35,12 +35,12 @@ export default function BioPages() {
   const selected = pages?.find((p) => p.id === selectedId) ?? null;
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-10">
       <div>
-        <h1 className="font-display text-2xl font-bold tracking-tight">
+        <h1 className="font-display text-[32px] font-bold leading-[1.1] tracking-[-0.03em] sm:text-[40px]">
           Link na bio
         </h1>
-        <p className="mt-1 text-[13px] text-muted-foreground">
+        <p className="mt-3 max-w-[640px] text-[15px] leading-relaxed text-muted-foreground">
           Uma página de links por perfil, no domínio da marca. Cada botão é um
           link rastreado, então o clique na bio entra no mesmo relatório.
         </p>
@@ -65,7 +65,7 @@ export default function BioPages() {
                 variant={page.id === selectedId ? "outline" : "ghost"}
                 size="sm"
                 onClick={() => setSelectedId(page.id)}
-                className={cn("font-mono", page.id === selectedId && "border-primary")}
+                className={cn("font-code", page.id === selectedId && "border-primary text-primary-ink")}
               >
                 @{page.slug}
                 {!page.is_active && <Badge variant="destructive">inativa</Badge>}
@@ -79,7 +79,7 @@ export default function BioPages() {
         </>
       )}
 
-      <p className="text-[11px] text-muted-foreground/70">
+      <p className="text-[11px] text-muted-foreground">
         As páginas são servidas pelo mesmo domínio curto ({SHORT_DOMAIN}), em
         HTML de servidor — por isso a prévia funciona quando alguém compartilha
         o endereço.

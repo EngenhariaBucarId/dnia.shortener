@@ -16,7 +16,7 @@ export function StatTile({
       <span className="eyebrow">{label}</span>
       <p className="stat-number mt-1">{value}</p>
       {hint && (
-        <p className="mt-0.5 text-[11px] text-muted-foreground/70">{hint}</p>
+        <p className="mt-0.5 text-[11px] text-muted-foreground">{hint}</p>
       )}
     </div>
   );
@@ -50,7 +50,7 @@ export function RankedList({
       <span className="eyebrow">{title}</span>
 
       {visible.length === 0 ? (
-        <p className="mt-3 text-[13px] text-muted-foreground/70">{emptyLabel}</p>
+        <p className="mt-3 text-[13px] text-muted-foreground">{emptyLabel}</p>
       ) : (
         <div className="mt-3 space-y-2">
           {visible.map((row) => (
@@ -64,11 +64,11 @@ export function RankedList({
                 </span>
               </div>
               <div
-                className="mt-1 h-1 overflow-hidden rounded-full bg-muted/60"
+                className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-border/60"
                 role="presentation"
               >
                 <div
-                  className="h-full rounded-full bg-primary/70"
+                  className="h-full rounded-full bg-primary"
                   style={{ width: `${(row.count / max) * 100}%` }}
                 />
               </div>

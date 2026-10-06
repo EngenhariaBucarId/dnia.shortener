@@ -67,12 +67,12 @@ export default function Dashboard() {
   }, [stats, links]);
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-10">
       <div>
-        <h1 className="font-display text-2xl font-bold tracking-tight">
+        <h1 className="font-display text-[32px] font-bold leading-[1.1] tracking-[-0.03em] sm:text-[40px]">
           Links e UTMs
         </h1>
-        <p className="mt-1 text-[13px] text-muted-foreground">
+        <p className="mt-3 max-w-[640px] text-[15px] leading-relaxed text-muted-foreground">
           Encurte, marque com UTM na convenção e acompanhe o clique por
           campanha, rosto e canal.
         </p>
@@ -99,7 +99,7 @@ export default function Dashboard() {
 
       <div className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="font-display text-lg font-semibold tracking-tight">
+          <h2 className="font-display text-xl font-bold tracking-[-0.02em]">
             Links criados
           </h2>
           <div className="relative w-full max-w-xs">

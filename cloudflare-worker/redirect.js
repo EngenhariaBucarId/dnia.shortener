@@ -275,7 +275,7 @@ async function renderBioPage(pageSlug, env, fallback) {
     const pageRes = await fetch(
       `${env.SUPABASE_URL}/rest/v1/bio_pages` +
         `?slug=eq.${encodeURIComponent(pageSlug)}&is_active=eq.true` +
-        `&select=id,slug,title,subtitle,avatar_url&limit=1`,
+        `&select=id,slug,title,subtitle,avatar_url,background,background_url,logo_url&limit=1`,
       { headers }
     );
     if (!pageRes.ok) throw new Error(`bio_pages ${pageRes.status}`);
@@ -318,23 +318,127 @@ function escapeHtml(value) {
     .replace(/'/g, "&#39;");
 }
 
-function bioPageHtml(page, items) {
+/**
+ * Só aceita imagem por https. Devolve a URL normalizada, com os caracteres
+ * que quebrariam um url("...") de CSS já codificados — o fundo entra num
+ * atributo style, então precisa sobreviver a HTML e a CSS ao mesmo tempo.
+ */
+function safeImageUrl(value, { allowDataImage = false } = {}) {
+  if (!value) return "";
+  let parsed;
+  try {
+    parsed = new URL(String(value));
+  } catch {
+    return "";
+  }
+  // data:image só no preview do painel (modo demo, sem Storage). A página
+  // pública nunca serve imagem embutida: lá é sempre https.
+  const isDataImage =
+    allowDataImage && parsed.protocol === "data:" && /^data:image\/(png|jpeg|webp);base64,/.test(parsed.href);
+  if (parsed.protocol !== "https:" && !isDataImage) return "";
+  return parsed.href.replace(/["'()\\\s]/g, (ch) =>
+    `%${ch.charCodeAt(0).toString(16).toUpperCase().padStart(2, "0")}`
+  );
+}
+
+/**
+ * Fundos da página de bio, no design system dn.ia. O painel importa esta
+ * lista pra montar o seletor — a fonte da verdade é uma só.
+ *
+ * "imagem" usa o background_url enviado pelo time, com um véu escuro por
+ * cima pra garantir contraste do texto e dos botões em qualquer foto.
+ */
+export const BIO_BACKGROUNDS = {
+  premium: {
+    label: "Premium",
+    swatch: "#FCFBF8",
+    css: "background:#FCFBF8;",
+    text: "#17191D", muted: "#686A70", line: "rgba(221,216,206,.9)",
+    btnBg: "#FFFFFF", btnText: "#17191D",
+    btnShadow: "0 2px 8px rgba(23,25,29,.04)",
+  },
+  warm: {
+    label: "Warm",
+    swatch: "#EEEAE2",
+    css: "background:linear-gradient(180deg,#F7F5F0 0%,#EEEAE2 100%);",
+    text: "#17191D", muted: "#686A70", line: "#DDD8CE",
+    btnBg: "#FFFFFF", btnText: "#17191D",
+    btnShadow: "0 2px 8px rgba(23,25,29,.05)",
+  },
+  dark: {
+    label: "Dark",
+    swatch: "#060A14",
+    css:
+      "background:radial-gradient(ellipse 80% 60% at top left,rgba(61,97,255,.12) 0%,transparent 60%)," +
+      "radial-gradient(ellipse 60% 40% at top right,rgba(125,151,255,.06) 0%,transparent 60%),#04070F;",
+    text: "#F0F4FF", muted: "#A8B3C7", line: "rgba(210,220,255,.16)",
+    btnBg: "rgba(255,255,255,.03)", btnText: "#F0F4FF",
+    btnShadow: "none",
+  },
+  azul: {
+    label: "Azul dn.ia",
+    swatch: "#2F4FD1",
+    css:
+      "background:radial-gradient(ellipse 90% 60% at top,rgba(125,151,255,.45) 0%,transparent 70%)," +
+      "linear-gradient(180deg,#2F4FD1 0%,#1B2E86 100%);",
+    text: "#FFFFFF", muted: "rgba(255,255,255,.78)", line: "rgba(255,255,255,.28)",
+    btnBg: "rgba(255,255,255,.12)", btnText: "#FFFFFF",
+    btnShadow: "none",
+  },
+  imagem: {
+    label: "Sua imagem",
+    swatch: null,
+    css: "background:#04070F;",
+    text: "#FFFFFF", muted: "rgba(255,255,255,.82)", line: "rgba(255,255,255,.3)",
+    btnBg: "rgba(4,7,15,.45)", btnText: "#FFFFFF",
+    btnShadow: "none",
+  },
+};
+
+/**
+ * HTML da página pública. `preview: true` é o modo do painel: mesmo HTML,
+ * mas os botões não têm href — clicar no preview não pode gerar clique na
+ * métrica nem navegar dentro do iframe.
+ */
+export function bioPageHtml(page, items, { preview = false } = {}) {
   const title = escapeHtml(page.title);
   const subtitle = page.subtitle ? escapeHtml(page.subtitle) : "";
-  const avatar = page.avatar_url ? escapeHtml(page.avatar_url) : "";
+  const avatar = escapeHtml(safeImageUrl(page.avatar_url, { allowDataImage: preview }));
+  const backgroundImage = safeImageUrl(page.background_url, { allowDataImage: preview });
+  const logo = escapeHtml(safeImageUrl(page.logo_url, { allowDataImage: preview }));
+
+  const themeKey =
+    page.background === "imagem" && !backgroundImage
+      ? "premium"
+      : BIO_BACKGROUNDS[page.background]
+        ? page.background
+        : "premium";
+  const theme = BIO_BACKGROUNDS[themeKey];
+
+  // O fundo enviado vai num atributo style (HTML decodifica entidades em
+  // atributo, não dentro de <style>) — por isso o escapeHtml por cima.
+  const bodyStyle =
+    themeKey === "imagem"
+      ? ` style="${escapeHtml(
+          `background:linear-gradient(180deg,rgba(4,7,15,.35) 0%,rgba(4,7,15,.7) 100%),url('${backgroundImage}') center/cover no-repeat,#04070F;`
+        )}"`
+      : "";
 
   const buttons = items
     .map((item) => {
       const slug = item.links?.slug;
       if (!slug) return "";
-      return `<a class="btn" href="/${encodeURIComponent(slug)}">${escapeHtml(
-        item.label
-      )}</a>`;
+      const label = escapeHtml(item.label);
+      return preview
+        ? `<a class="btn" role="link" aria-disabled="true">${label}</a>`
+        : `<a class="btn" href="/${encodeURIComponent(slug)}">${label}</a>`;
     })
     .join("\n      ");
 
-  // Visual no padrão dn.ia: fundo estratificado (nunca preto chapado),
-  // azul #3D61FF como único destaque, Rajdhani no título e Inter no corpo.
+  const blur = themeKey === "imagem" || themeKey === "azul";
+
+  // Visual do design system dn.ia (designsystem.dnia.ai): Sora, raio 16px,
+  // azul #3D61FF como único destaque, nunca preto chapado.
   return `<!doctype html>
 <html lang="pt-BR">
 <head>
@@ -349,47 +453,52 @@ ${avatar ? `<meta property="og:image" content="${avatar}">` : ""}
 <meta name="twitter:card" content="summary">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Rajdhani:wght@600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
   *{margin:0;padding:0;box-sizing:border-box}
   body{
     min-height:100vh;
-    background:
-      radial-gradient(ellipse 80% 60% at top left, rgba(61,97,255,.07) 0%, transparent 60%),
-      radial-gradient(ellipse 60% 40% at top right, rgba(139,92,246,.05) 0%, transparent 60%),
-      #0A0A0A;
-    color:#FAFAFA;
-    font-family:Inter,system-ui,sans-serif;
+    ${theme.css}
+    color:${theme.text};
+    font-family:Sora,system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased;
     display:flex;justify-content:center;
-    padding:56px 20px 80px;
+    padding:56px 20px 64px;
   }
-  .wrap{width:100%;max-width:420px;text-align:center}
+  .wrap{width:100%;max-width:440px;text-align:center;display:flex;flex-direction:column;min-height:calc(100vh - 120px)}
   .avatar{
-    width:88px;height:88px;border-radius:50%;object-fit:cover;
-    border:1px solid rgba(61,97,255,.35);margin:0 auto 20px;display:block;
+    width:96px;height:96px;border-radius:50%;object-fit:cover;
+    border:3px solid ${theme.btnBg === "#FFFFFF" ? "#FFFFFF" : theme.line};
+    box-shadow:0 12px 32px rgba(23,25,29,.12);
+    margin:0 auto 20px;display:block;
   }
-  h1{font-family:Rajdhani,sans-serif;font-size:28px;font-weight:700;letter-spacing:-.02em;line-height:1.1}
-  .sub{margin-top:8px;font-size:14px;line-height:1.6;color:hsl(0 0% 58%)}
+  h1{font-size:26px;font-weight:700;letter-spacing:-.03em;line-height:1.15}
+  .sub{margin-top:8px;font-size:14px;line-height:1.6;color:${theme.muted}}
   .links{margin-top:32px;display:flex;flex-direction:column;gap:12px}
   .btn{
-    display:block;padding:15px 20px;border-radius:12px;
-    border:1px solid rgba(255,255,255,.08);
-    background:rgba(255,255,255,.022);
-    color:#FAFAFA;text-decoration:none;font-size:15px;font-weight:500;
-    transition:border-color .18s, transform .18s, box-shadow .18s;
+    display:block;padding:16px 20px;border-radius:16px;
+    border:1px solid ${theme.line};
+    background:${theme.btnBg};
+    box-shadow:${theme.btnShadow};
+    ${blur ? "backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);" : ""}
+    color:${theme.btnText};text-decoration:none;font-size:15px;font-weight:600;
+    cursor:pointer;
+    transition:border-color .3s cubic-bezier(.16,1,.3,1),transform .3s cubic-bezier(.16,1,.3,1),box-shadow .3s cubic-bezier(.16,1,.3,1);
   }
   .btn:hover,.btn:focus-visible{
-    border-color:rgba(61,97,255,.5);
-    transform:translateY(-1px);
-    box-shadow:0 8px 24px -12px rgba(61,97,255,.45);
+    border-color:rgba(61,97,255,.55);
+    transform:translateY(-2px);
+    box-shadow:0 12px 32px -12px rgba(61,97,255,.35);
     outline:none;
   }
   .btn:focus-visible{outline:2px solid #3D61FF;outline-offset:2px}
-  .empty{margin-top:32px;font-size:14px;color:hsl(0 0% 40%)}
-  footer{margin-top:48px;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:hsl(0 0% 30%)}
+  .empty{margin-top:32px;font-size:14px;color:${theme.muted}}
+  footer{margin-top:auto;padding-top:48px;font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:${theme.muted};opacity:.8}
+  .brand{display:block;margin:0 auto;height:32px;width:auto;max-width:160px;object-fit:contain}
+  @media (prefers-reduced-motion:reduce){.btn{transition:none}}
 </style>
 </head>
-<body>
+<body${bodyStyle}>
   <main class="wrap">
     ${avatar ? `<img class="avatar" src="${avatar}" alt="">` : ""}
     <h1>${title}</h1>
@@ -397,7 +506,7 @@ ${avatar ? `<meta property="og:image" content="${avatar}">` : ""}
     <nav class="links">
       ${buttons || '<p class="empty">Em breve.</p>'}
     </nav>
-    <footer>dn.ia</footer>
+    <footer>${logo ? `<img class="brand" src="${logo}" alt="${title}">` : "dn.ia"}</footer>
   </main>
 </body>
 </html>`;

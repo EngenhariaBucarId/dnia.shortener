@@ -70,7 +70,7 @@ export function LinkList({
             >
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                  <span className="font-mono text-[13px] text-primary-light">
+                  <span className="font-code text-[13px] font-medium text-primary-ink">
                     /{link.slug}
                   </span>
                   {link.title && (
@@ -81,7 +81,7 @@ export function LinkList({
                   {!link.is_active && <Badge variant="destructive">inativo</Badge>}
                 </div>
 
-                <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground/70">
+                <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
                   {link.campaign && <span>{link.campaign}</span>}
                   {link.rosto && <span>· {link.rosto}</span>}
                   {link.canal && <span>· {link.canal}</span>}
@@ -94,7 +94,7 @@ export function LinkList({
                   <p className="font-display text-xl font-bold tabular leading-none">
                     {stat?.clicks ?? 0}
                   </p>
-                  <span className="font-mono text-[9px] uppercase tracking-[0.12em] text-muted-foreground/70">
+                  <span className="font-mono text-[9px] uppercase tracking-[0.12em] text-muted-foreground">
                     cliques
                   </span>
                 </div>
@@ -102,7 +102,7 @@ export function LinkList({
                   <p className="font-display text-xl font-bold tabular leading-none text-muted-foreground">
                     {stat?.unique_clicks ?? 0}
                   </p>
-                  <span className="font-mono text-[9px] uppercase tracking-[0.12em] text-muted-foreground/70">
+                  <span className="font-mono text-[9px] uppercase tracking-[0.12em] text-muted-foreground">
                     únicos
                   </span>
                 </div>
@@ -124,8 +124,8 @@ export function LinkList({
                 <Button
                   variant="ghost"
                   size="icon"
-                  title="Editar destino"
-                  aria-label="Editar destino"
+                  title="Editar link"
+                  aria-label="Editar link"
                   onClick={() => setEditing(link)}
                 >
                   <Pencil />

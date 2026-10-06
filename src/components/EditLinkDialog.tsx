@@ -9,6 +9,7 @@ import {
   divergingUtmKeys,
   suggestUtms,
   validateDestinationUrl,
+  validateSlug,
 } from "@/lib/utm";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,12 +25,16 @@ import {
 } from "@/components/ui/dialog";
 
 /**
- * Edição de destino — a função que faz um encurtador valer a pena.
+ * Edição de link — a função que faz um encurtador valer a pena.
  *
- * O slug NÃO muda: o link que já está impresso num banner, no story de ontem
- * ou em 40 posts continua funcionando. Muda só pra onde ele aponta. E como os
- * cliques ficam presos ao id do link, o histórico anterior não se perde — o
- * que você vê depois é o mesmo link, com destino novo.
+ * O caso normal é trocar só o destino: o link que já está impresso num
+ * banner, no story de ontem ou em 40 posts continua funcionando, e como os
+ * cliques ficam presos ao id do link, o histórico não se perde.
+ *
+ * O slug também pode mudar, mas aí o endereço antigo morre na hora (o Worker
+ * resolve por slug e não guarda alias). Por isso trocar o slug exige marcar
+ * uma confirmação explícita. Cliques antigos e botões de bio seguem o link,
+ * porque os dois apontam pro id, não pro slug.
  */
 export function EditLinkDialog({
   link,
@@ -42,6 +47,8 @@ export function EditLinkDialog({
   onOpenChange: (open: boolean) => void;
   onSaved: () => void;
 }) {
+  const [slug, setSlug] = useState(link.slug);
+  const [slugConfirmed, setSlugConfirmed] = useState(false);
   const [destinationUrl, setDestinationUrl] = useState(link.destination_url);
   const [title, setTitle] = useState(link.title ?? "");
   const [utms, setUtms] = useState<Utms>({
@@ -67,10 +74,22 @@ export function EditLinkDialog({
   );
 
   const diverging = divergingUtmKeys(utms, suggested);
+  const nextSlug = slug.trim();
+  const slugChanged = nextSlug !== link.slug;
   const finalUrl = buildFinalUrl(destinationUrl, utms);
 
   async function handleSave() {
     setError(null);
+
+    if (slugChanged) {
+      const slugError = validateSlug(nextSlug);
+      if (slugError) return setError(slugError);
+      if (!slugConfirmed) {
+        return setError(
+          "Confirme que o endereço antigo pode parar de funcionar antes de trocar o slug."
+        );
+      }
+    }
 
     const urlError = validateDestinationUrl(destinationUrl);
     if (urlError) return setError(urlError);
@@ -80,6 +99,7 @@ export function EditLinkDialog({
     const { error: updateError } = await supabase
       .from("links")
       .update({
+        ...(slugChanged ? { slug: nextSlug } : {}),
         destination_url: destinationUrl.trim(),
         final_url: buildFinalUrl(destinationUrl.trim(), utms),
         title: title.trim() || null,
@@ -93,7 +113,14 @@ export function EditLinkDialog({
 
     setSaving(false);
 
-    if (updateError) return setError(updateError.message);
+    if (updateError) {
+      // 23505 = unique_violation no slug
+      return setError(
+        updateError.code === "23505"
+          ? `O slug "${nextSlug}" já está em uso. Escolha outro.`
+          : updateError.message
+      );
+    }
 
     onSaved();
     onOpenChange(false);
@@ -103,18 +130,62 @@ export function EditLinkDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Editar destino</DialogTitle>
+          <DialogTitle>Editar link</DialogTitle>
           <DialogDescription>
-            O link curto{" "}
-            <span className="font-mono text-primary-light">
+            Troque pra onde{" "}
+            <span className="font-code text-primary-ink">
               {shortUrl(link.slug)}
             </span>{" "}
-            continua o mesmo. Muda só pra onde ele leva — e os cliques já
-            registrados seguem no histórico.
+            leva sem mudar o endereço. Os cliques já registrados seguem no
+            histórico.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
+          <div>
+            <Label htmlFor="edit-slug">Slug</Label>
+            <Input
+              id="edit-slug"
+              className="font-code"
+              value={slug}
+              onChange={(e) => {
+                setSlug(e.target.value);
+                setSlugConfirmed(false);
+              }}
+            />
+            {slugChanged && nextSlug && (
+              <p className="mt-1.5 break-all font-code text-[11px] text-muted-foreground">
+                novo endereço:{" "}
+                <span className="text-primary-ink">{shortUrl(nextSlug)}</span>
+              </p>
+            )}
+          </div>
+
+          {slugChanged && (
+            <div
+              role="alert"
+              className="space-y-3 rounded-md border border-warning/40 bg-warning/10 p-3"
+            >
+              <p className="flex gap-2 text-[12px] leading-relaxed text-warning">
+                <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                <span>
+                  <span className="font-code">{shortUrl(link.slug)}</span> para
+                  de funcionar assim que você salvar. Post publicado, story e QR
+                  code impresso com o endereço antigo vão cair no fallback. Os
+                  cliques antigos e os botões de bio continuam valendo.
+                </span>
+              </p>
+              <label className="flex cursor-pointer items-center gap-2 text-[12px] text-foreground/90">
+                <input
+                  type="checkbox"
+                  className="h-3.5 w-3.5 accent-primary"
+                  checked={slugConfirmed}
+                  onChange={(e) => setSlugConfirmed(e.target.checked)}
+                />
+                Entendi, o endereço antigo pode parar de funcionar
+              </label>
+            </div>
+          )}
           <div>
             <Label htmlFor="edit-destination">URL de destino</Label>
             <Input
@@ -164,7 +235,7 @@ export function EditLinkDialog({
                   <Label htmlFor={`edit-${key}`}>{key}</Label>
                   <Input
                     id={`edit-${key}`}
-                    className="font-mono text-xs"
+                    className="font-code text-xs"
                     value={utms[key]}
                     onChange={(e) =>
                       setUtms((prev) => ({ ...prev, [key]: e.target.value }))
@@ -175,9 +246,9 @@ export function EditLinkDialog({
             </div>
           </div>
 
-          <div className="rounded-md border border-border-subtle bg-muted/30 p-3">
+          <div className="rounded-md border border-border-subtle bg-muted p-3">
             <span className="eyebrow">Novo destino final</span>
-            <p className="mt-1.5 break-all font-mono text-[11px] leading-relaxed text-primary-light">
+            <p className="mt-1.5 break-all font-code text-[11px] leading-relaxed text-primary-ink">
               {finalUrl}
             </p>
           </div>
@@ -186,8 +257,11 @@ export function EditLinkDialog({
         </div>
 
         <DialogFooter>
-          <Button onClick={handleSave} disabled={saving}>
-            {saving ? "Salvando…" : "Salvar destino"}
+          <Button
+            onClick={handleSave}
+            disabled={saving || (slugChanged && !slugConfirmed)}
+          >
+            {saving ? "Salvando…" : "Salvar alterações"}
           </Button>
           <Button variant="ghost" onClick={() => onOpenChange(false)}>
             Cancelar

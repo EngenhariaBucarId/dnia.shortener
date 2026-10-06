@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
+import { BrandLogo } from "@/components/BrandLogo";
 
 export default function Login() {
   const { session, loading, signInWithMagicLink } = useAuth();
@@ -41,18 +42,18 @@ export default function Login() {
 
   return (
     <div className="flex min-h-screen items-center justify-center px-5">
-      <div className="w-full max-w-sm">
-        <div className="mb-8 text-center">
-          <h1 className="font-display text-3xl font-bold tracking-tight">
-            links<span className="text-primary">.dn.ia</span>
+      <div className="w-full max-w-[400px]">
+        <div className="mb-10 flex flex-col items-center text-center">
+          <h1>
+            <BrandLogo size="lg" />
           </h1>
-          <p className="mt-2 text-[13px] text-muted-foreground">
+          <p className="mt-4 text-[13px] text-muted-foreground">
             Encurtador com UTM e métrica de clique. Acesso restrito ao time.
           </p>
         </div>
 
         <Card>
-          <CardContent className="pt-6">
+          <CardContent className="pt-6 sm:pt-8">
             {status === "sent" ? (
               <div className="space-y-3 text-center">
                 <p className="font-display text-lg font-semibold">
@@ -98,7 +99,7 @@ export default function Login() {
                   {status === "sending" ? "Enviando…" : "Receber link de acesso"}
                 </Button>
 
-                <p className="text-center text-[11px] leading-relaxed text-muted-foreground/70">
+                <p className="text-center text-[11px] leading-relaxed text-muted-foreground">
                   Sem senha: você recebe um link de acesso por email. Só emails
                   já cadastrados no Supabase conseguem entrar.
                 </p>

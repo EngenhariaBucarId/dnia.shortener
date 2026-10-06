@@ -31,6 +31,11 @@ export type BioPageRow = {
   title: string;
   subtitle: string | null;
   avatar_url: string | null;
+  /** Tema de fundo (chave de BIO_BACKGROUNDS no Worker) ou "imagem". */
+  background: string;
+  background_url: string | null;
+  /** Logo no rodapé da página pública; vazio = texto "dn.ia". */
+  logo_url: string | null;
   rosto: string | null;
   is_active: boolean;
   created_by: string | null;
@@ -155,8 +160,19 @@ export type Database = {
         Row: BioPageRow;
         Insert: Omit<
           BioPageRow,
-          "id" | "created_at" | "updated_at" | "created_by"
-        > & { id?: string };
+          | "id"
+          | "created_at"
+          | "updated_at"
+          | "created_by"
+          | "background"
+          | "background_url"
+          | "logo_url"
+        > & {
+          id?: string;
+          background?: string;
+          background_url?: string | null;
+          logo_url?: string | null;
+        };
         Update: Partial<BioPageRow>;
         Relationships: [];
       };

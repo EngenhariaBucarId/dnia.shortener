@@ -259,6 +259,18 @@ create table if not exists public.bio_pages (
   constraint bio_pages_slug_format check (slug ~ '^[a-z0-9_-]{2,40}$')
 );
 
+-- Fundo da página: um dos temas prontos (lista em BIO_BACKGROUNDS, no Worker)
+-- ou "imagem", que usa background_url. Em coluna separada (e não só a URL)
+-- pra trocar de tema sem perder a imagem já enviada.
+alter table public.bio_pages add column if not exists background text not null default 'premium';
+alter table public.bio_pages add column if not exists background_url text;
+-- Logo da empresa no rodapé da página (no lugar do texto "dn.ia").
+alter table public.bio_pages add column if not exists logo_url text;
+
+alter table public.bio_pages drop constraint if exists bio_pages_background_valid;
+alter table public.bio_pages add constraint bio_pages_background_valid
+  check (background in ('premium', 'warm', 'dark', 'azul', 'imagem'));
+
 drop trigger if exists trg_bio_pages_touch on public.bio_pages;
 create trigger trg_bio_pages_touch
   before update on public.bio_pages
@@ -311,3 +323,32 @@ left join public.clicks c on c.link_id = l.id
 group by i.id, i.page_id, i.label, i.position, l.slug;
 
 grant select on public.v_bio_item_stats to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- IMAGENS DA PÁGINA DE BIO (Supabase Storage)
+-- ---------------------------------------------------------------------------
+-- Foto de perfil e imagem de fundo enviadas pelo painel. O bucket é PÚBLICO
+-- pra leitura porque a página de bio é pública: o navegador de quem visita
+-- carrega a imagem direto do Storage. Escrever (subir, trocar, apagar) é só
+-- pro time autenticado — o mesmo modelo das tabelas.
+--
+-- Limite de 5 MB e só imagem. O painel já redimensiona e converte pra WebP
+-- antes de subir, então na prática os arquivos ficam bem abaixo disso.
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values ('bio-media', 'bio-media', true, 5242880, array['image/jpeg', 'image/png', 'image/webp'])
+on conflict (id) do update
+  set public = excluded.public,
+      file_size_limit = excluded.file_size_limit,
+      allowed_mime_types = excluded.allowed_mime_types;
+
+drop policy if exists "bio-media: autenticado envia" on storage.objects;
+create policy "bio-media: autenticado envia" on storage.objects
+  for insert to authenticated with check (bucket_id = 'bio-media');
+
+drop policy if exists "bio-media: autenticado troca" on storage.objects;
+create policy "bio-media: autenticado troca" on storage.objects
+  for update to authenticated using (bucket_id = 'bio-media');
+
+drop policy if exists "bio-media: autenticado apaga" on storage.objects;
+create policy "bio-media: autenticado apaga" on storage.objects
+  for delete to authenticated using (bucket_id = 'bio-media');

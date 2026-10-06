@@ -23,7 +23,7 @@ function formatDay(iso: string): string {
 export function DailyClicksChart({ data }: { data: Point[] }) {
   if (data.length === 0) {
     return (
-      <p className="py-10 text-center text-[13px] text-muted-foreground/70">
+      <p className="py-10 text-center text-[13px] text-muted-foreground">
         Nenhum clique registrado ainda.
       </p>
     );

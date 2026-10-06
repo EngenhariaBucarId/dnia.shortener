@@ -18,7 +18,7 @@ type Row = {
 function StatsTable({ rows, firstColumn }: { rows: Row[]; firstColumn: string }) {
   if (rows.length === 0) {
     return (
-      <p className="py-8 text-center text-[13px] text-muted-foreground/70">
+      <p className="py-8 text-center text-[13px] text-muted-foreground">
         Nenhum clique registrado ainda neste corte.
       </p>
     );
@@ -52,9 +52,9 @@ function StatsTable({ rows, firstColumn }: { rows: Row[]; firstColumn: string })
                 </span>
                 {/* Barra de magnitude em tom único — a leitura é pelo
                     tamanho, não pela cor (ver nota em StatTile.tsx). */}
-                <div className="mt-1.5 h-1 w-full max-w-[220px] overflow-hidden rounded-full bg-muted/60">
+                <div className="mt-1.5 h-1.5 w-full max-w-[220px] overflow-hidden rounded-full bg-border/60">
                   <div
-                    className="h-full rounded-full bg-primary/70"
+                    className="h-full rounded-full bg-primary"
                     style={{ width: `${(row.clicks / max) * 100}%` }}
                   />
                 </div>
@@ -68,7 +68,7 @@ function StatsTable({ rows, firstColumn }: { rows: Row[]; firstColumn: string })
               <td className="py-3 text-right font-mono text-[13px] tabular text-muted-foreground">
                 {row.links}
               </td>
-              <td className="py-3 text-right font-mono text-[11px] text-muted-foreground/70">
+              <td className="py-3 text-right font-mono text-[11px] text-muted-foreground">
                 {formatDateTime(row.last_click_at)}
               </td>
             </tr>
@@ -137,12 +137,12 @@ export default function Campaigns() {
   const topCampaign = (campaigns ?? [])[0];
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-10">
       <div>
-        <h1 className="font-display text-2xl font-bold tracking-tight">
+        <h1 className="font-display text-[32px] font-bold leading-[1.1] tracking-[-0.03em] sm:text-[40px]">
           Campanhas
         </h1>
-        <p className="mt-1 text-[13px] text-muted-foreground">
+        <p className="mt-3 max-w-[640px] text-[15px] leading-relaxed text-muted-foreground">
           De qual campanha, rosto e canal vieram os cliques. Prévias de link
           (WhatsApp, Instagram) já saem da conta.
         </p>

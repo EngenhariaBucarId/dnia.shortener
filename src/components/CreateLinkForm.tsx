@@ -367,7 +367,7 @@ export function CreateLinkForm({
                   <Label htmlFor={key}>{UTM_LABELS[key]}</Label>
                   <Input
                     id={key}
-                    className="font-mono text-xs"
+                    className="font-code text-xs"
                     value={utms[key]}
                     placeholder="—"
                     onChange={(e) => updateUtm(key, e.target.value)}
@@ -379,9 +379,9 @@ export function CreateLinkForm({
 
           {/* ---- preview ---- */}
           {finalUrl && (
-            <div className="rounded-md border border-border-subtle bg-muted/30 p-4">
+            <div className="rounded-md border border-border-subtle bg-muted p-4">
               <span className="eyebrow">Destino final com UTM</span>
-              <p className="mt-2 break-all font-mono text-[11px] leading-relaxed text-primary-light">
+              <p className="mt-2 break-all font-code text-[11px] leading-relaxed text-primary-ink">
                 {finalUrl}
               </p>
             </div>
@@ -396,7 +396,7 @@ export function CreateLinkForm({
 
             {created && (
               <div className="flex items-center gap-2">
-                <span className="font-mono text-xs text-primary-light">
+                <span className="font-code text-xs text-primary-ink">
                   {shortUrl(created.slug)}
                 </span>
                 <Button

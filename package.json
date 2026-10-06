@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:demo": "vite --mode demo",
     "build": "tsc -b && vite build",
     "typecheck": "tsc --noEmit",
     "test": "node --experimental-strip-types --no-warnings tests/utm.test.ts && node --no-warnings tests/worker.test.mjs && node --no-warnings tests/bio.test.mjs",

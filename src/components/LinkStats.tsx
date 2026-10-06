@@ -88,7 +88,7 @@ export function LinkStats({ link }: { link: LinkRow }) {
     <Card>
       <CardHeader>
         <CardTitle className="flex flex-wrap items-center gap-x-3 gap-y-2">
-          <span className="font-mono text-sm text-primary-light">
+          <span className="font-code text-sm font-medium text-primary-ink">
             {shortUrl(link.slug)}
           </span>
           {link.title && (
@@ -100,7 +100,7 @@ export function LinkStats({ link }: { link: LinkRow }) {
             href={link.final_url}
             target="_blank"
             rel="noreferrer"
-            className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-primary-light"
+            className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-primary-ink"
           >
             abrir destino <ExternalLink className="h-3 w-3" />
           </a>
@@ -168,9 +168,9 @@ export function LinkStats({ link }: { link: LinkRow }) {
           />
         </div>
 
-        <div className="rounded-md border border-border-subtle bg-muted/30 p-4">
+        <div className="rounded-md border border-border-subtle bg-muted p-4">
           <span className="eyebrow">Destino final</span>
-          <p className="mt-2 break-all font-mono text-[11px] leading-relaxed text-muted-foreground">
+          <p className="mt-2 break-all font-code text-[11px] leading-relaxed text-muted-foreground">
             {link.final_url}
           </p>
         </div>

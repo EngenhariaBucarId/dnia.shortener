@@ -1,6 +1,6 @@
 // Testes da página de link na bio renderizada pelo Worker.
 import assert from "node:assert/strict";
-import worker from "../cloudflare-worker/redirect.js";
+import worker, { bioPageHtml } from "../cloudflare-worker/redirect.js";
 
 const env = {
   SUPABASE_URL: "https://proj.supabase.co",
@@ -150,6 +150,79 @@ await check("não quebra o redirect normal de link", async () => {
   const res = await worker.fetch(request("/abc1234"), env);
   assert.equal(res.status, 302);
   assert.equal(res.headers.get("location"), "https://dn.ia/reuniao");
+});
+
+await check("fundo escolhido entra no HTML; fundo desconhecido cai no premium", async () => {
+  mockFetch({ page: { ...PAGE, background: "dark" } });
+  let html = await (await worker.fetch(request("/@rodrigo"), env)).text();
+  assert.ok(html.includes("#04070F"), "tema dark não aplicado");
+
+  mockFetch({ page: { ...PAGE, background: "nao-existe" } });
+  html = await (await worker.fetch(request("/@rodrigo"), env)).text();
+  assert.ok(html.includes("background:#FCFBF8"), "fallback premium não aplicado");
+});
+
+await check("fundo de imagem usa a URL enviada, e sem URL volta pro premium", async () => {
+  mockFetch({
+    page: { ...PAGE, background: "imagem", background_url: "https://proj.supabase.co/storage/v1/object/public/bio-media/p/bg.webp" },
+  });
+  let html = await (await worker.fetch(request("/@rodrigo"), env)).text();
+  assert.ok(html.includes("bio-media/p/bg.webp"));
+
+  mockFetch({ page: { ...PAGE, background: "imagem", background_url: null } });
+  html = await (await worker.fetch(request("/@rodrigo"), env)).text();
+  assert.ok(html.includes("background:#FCFBF8"));
+});
+
+await check("URL de imagem não fura o CSS nem o HTML", async () => {
+  mockFetch({
+    page: {
+      ...PAGE,
+      background: "imagem",
+      // Tenta fechar o url('...') e o atributo style pra injetar HTML/CSS.
+      background_url: `https://x.com/a.png') ;}</style><script>alert(1)</script>"`,
+      avatar_url: "javascript:alert(1)",
+    },
+  });
+  const html = await (await worker.fetch(request("/@rodrigo"), env)).text();
+  assert.ok(!html.includes("<script>alert"), "script vazou pelo fundo");
+  assert.ok(!html.includes("javascript:"), "avatar aceitou javascript:");
+  assert.ok(!/url\('[^']*'\)\s*;\}/.test(html), "o url() do fundo foi fechado antes da hora");
+});
+
+await check("imagem embutida (data:) só vale no preview, nunca na página pública", async () => {
+  const dataImg = "data:image/png;base64,iVBORw0KGgo=";
+  const page = { ...PAGE, avatar_url: dataImg, background: "imagem", background_url: dataImg };
+
+  mockFetch({ page });
+  const publicHtml = await (await worker.fetch(request("/@rodrigo"), env)).text();
+  assert.ok(!publicHtml.includes("data:image"), "página pública aceitou data:");
+
+  const previewHtml = bioPageHtml(page, ITEMS, { preview: true });
+  assert.ok(previewHtml.includes("data:image/png"), "preview recusou data:image");
+  assert.ok(!bioPageHtml({ ...page, avatar_url: "data:text/html;base64,PHNjcmlwdD4=" }, [], { preview: true })
+    .includes("data:text"), "preview aceitou data: que não é imagem");
+});
+
+await check("logo da empresa substitui o texto dn.ia no rodapé", async () => {
+  mockFetch();
+  let html = await (await worker.fetch(request("/@rodrigo"), env)).text();
+  assert.ok(html.includes("<footer>dn.ia</footer>"), "sem logo deveria mostrar o texto");
+
+  mockFetch({ page: { ...PAGE, logo_url: "https://proj.supabase.co/storage/v1/object/public/bio-media/p/logo.webp" } });
+  html = await (await worker.fetch(request("/@rodrigo"), env)).text();
+  assert.ok(html.includes('class="brand" src="https://proj.supabase.co/storage/v1/object/public/bio-media/p/logo.webp"'));
+  assert.ok(!html.includes("<footer>dn.ia</footer>"));
+
+  mockFetch({ page: { ...PAGE, logo_url: 'https://x.com/l.png" onerror="alert(1)' } });
+  html = await (await worker.fetch(request("/@rodrigo"), env)).text();
+  assert.ok(!html.includes('onerror="alert'), "logo furou o atributo src");
+});
+
+await check("modo preview do painel não gera link clicável", async () => {
+  const html = bioPageHtml(PAGE, ITEMS, { preview: true });
+  assert.ok(!html.includes('href="/abc1234"'), "preview com href rastreado");
+  assert.ok(html.includes("Agendar reunião estratégica"));
 });
 
 console.log(`\n${passed} verificações passaram.\n`);

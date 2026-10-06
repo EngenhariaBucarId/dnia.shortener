@@ -97,7 +97,7 @@ export function QrCodeDialog({
           <DialogTitle>QR code</DialogTitle>
           <DialogDescription>
             Aponta pra{" "}
-            <span className="font-mono text-primary-light">{url}</span>, então
+            <span className="font-code text-primary-ink">{url}</span>, então
             todo scan entra na mesma métrica do link.
           </DialogDescription>
         </DialogHeader>
@@ -109,7 +109,7 @@ export function QrCodeDialog({
             <img
               src={pngUrl}
               alt={`QR code do link ${url}`}
-              className="h-56 w-56 rounded-md bg-white p-2"
+              className="h-56 w-56 rounded-md border border-border-subtle bg-card p-2"
             />
           ) : (
             <Skeleton className="h-56 w-56" />
