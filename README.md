@@ -21,13 +21,16 @@ redirect.
 - **Relatório por corte**: campanha, rosto e canal, pra responder de onde veio
   a demanda sem exportar nada pra planilha.
 - **Edição de destino**: troca pra onde um link já publicado aponta, sem mudar
-  o link nem perder os cliques antigos.
+  o link nem perder os cliques antigos. O slug também é editável, com aviso
+  de que o endereço antigo para de funcionar.
 - **QR code** por link, gerado no navegador (nenhum link vaza pra API de
   terceiro), em PNG pra tela e SVG pra gráfica.
 - **Página de link na bio** por perfil, em `seudominio.com/@rodrigo`, servida
   pelo Worker em HTML de servidor — por isso a prévia funciona quando alguém
   compartilha. Cada botão é um link rastreado, então o clique na bio cai no
-  mesmo relatório.
+  mesmo relatório. Foto, logo da empresa (no rodapé) e imagem de fundo sobem direto do painel (Supabase
+  Storage, já redimensionadas no navegador), com 4 fundos prontos do design
+  system e preview ao vivo — o preview é o mesmo HTML que o Worker publica.
 - **Login por magic link**, só pra quem já foi convidado no Supabase.
 
 ## Arquitetura
@@ -56,7 +59,8 @@ entende melhor, o que torna o remix limpo.
 
 1. Crie um projeto em supabase.com.
 2. **SQL Editor > New query**, cole `supabase/schema.sql` e rode. É idempotente,
-   pode rodar de novo sem quebrar nada.
+   pode rodar de novo sem quebrar nada. Ele também cria o bucket `bio-media`
+   (Storage) das fotos da bio — rode de novo sempre que o schema mudar.
 3. **⚠️ Desligue o cadastro público** — este é o passo que não pode ser
    esquecido. Em **Authentication > Sign In / Providers > Email**, desmarque
    *Enable sign-ups* (ou, em projetos mais novos, ligue *Confirm email* e
@@ -200,7 +204,7 @@ registrado como dívida consciente.
   ferramenta mede clique; demanda é o agendamento, e os dois ainda não se
   conversam.
 - Filtro de período no relatório de campanha.
-- Tema por página de bio (hoje todas seguem o padrão dn.ia).
+- Cor de botão customizável por página de bio (hoje vem do fundo escolhido).
 
 ## Paridade com o bit.ly
 

@@ -1,0 +1,122 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+  Design system dn.ia — tema PREMIUM (Neutral Warm), fonte: designsystem.dnia.ai.
+  É o tema indicado pra "plataforma do cliente, institucional e fluxos
+  funcionais": base branca, com o warm aparecendo só em divisória, fundo
+  alternado, sombra e estado selecionado. Premium não é um dark diferente —
+  não misturar com superfícies dark na mesma tela.
+
+  Tokens convertidos pra HSL no formato que o shadcn/ui e o Tailwind consomem
+  via hsl(var(--token)). Hex de referência (NÃO usar hex direto em componente):
+    #FCFBF8 canvas · #F7F5F0 seção/hover · #FFFFFF superfície
+    #DDD8CE linha forte · rgba(221,216,206,.65) linha · #17191D texto
+    #686A70 texto secundário · #3D61FF azul · #2F4FD1 azul p/ texto em claro
+    #E41A11 vermelho · #14795A verde (premium) · #8A5D0A âmbar (premium)
+*/
+
+@layer base {
+  :root {
+    --background: 40 33% 98%;
+    --foreground: 225 12% 10%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 225 12% 10%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 225 12% 10%;
+
+    /* Azul da marca — única cor de ação e destaque */
+    --primary: 229 100% 62%;
+    --primary-foreground: 0 0% 100%;
+    --primary-dark: 228 64% 50%;
+    /* Texto interativo/destacado em fundo claro usa o azul profundo (AA) */
+    --primary-ink: 228 64% 50%;
+
+    /* Vermelho contido — só ação destrutiva e erro */
+    --destructive: 4 87% 48%;
+    --destructive-foreground: 0 0% 100%;
+
+    --success: 162 72% 28%;
+    --warning: 39 87% 29%;
+
+    /* Warm só em fundo alternado, hover e estado selecionado */
+    --muted: 43 30% 95%;
+    --muted-foreground: 225 6% 42%;
+
+    --accent: 43 30% 95%;
+    --accent-foreground: 225 12% 10%;
+
+    --border: 40 18% 84%;
+    --border-subtle: 40 17% 90%;
+    --input: 40 18% 84%;
+    --ring: 229 100% 62%;
+
+    --radius: 1rem;
+
+    --shadow-card: 0 24px 64px rgba(23, 25, 29, 0.07), 0 2px 8px rgba(23, 25, 29, 0.04);
+    --shadow-float: 0 24px 64px rgba(23, 25, 29, 0.14), 0 2px 8px rgba(23, 25, 29, 0.06);
+    --hover-glow: rgba(61, 97, 255, 0.14);
+    --ease: cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  body {
+    /* Premium não tem atmosfera/aurora: o respiro é o acabamento. */
+    background: hsl(var(--background));
+    @apply text-foreground font-sans antialiased;
+    font-size: 14px;
+    line-height: 1.6;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Números de métrica alinham em coluna sem dançar */
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      transition-duration: 0.01ms !important;
+      animation-duration: 0.01ms !important;
+    }
+  }
+}
+
+@layer components {
+  /* Card premium: superfície branca, linha warm, raio 16px, sombra muito leve. */
+  .panel {
+    @apply relative overflow-hidden rounded-lg border border-border-subtle bg-card;
+    box-shadow: var(--shadow-card);
+  }
+
+  /* Label/metadado: Sora maiúsculo e espaçado (o "mono" do DS é a Sora). */
+  .eyebrow {
+    @apply font-mono text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground;
+  }
+
+  .stat-number {
+    @apply font-display text-4xl font-bold tracking-tight tabular;
+    letter-spacing: -0.03em;
+  }
+
+  /* Hover de card interativo: sobe no máximo 2px, glow azul discreto */
+  .panel-hover {
+    transition:
+      transform 0.3s var(--ease),
+      box-shadow 0.3s var(--ease),
+      border-color 0.3s var(--ease);
+  }
+
+  .panel-hover:hover {
+    @apply -translate-y-0.5 border-primary/25;
+    box-shadow: var(--shadow-card), 0 12px 32px -12px var(--hover-glow);
+  }
+}

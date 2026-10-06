@@ -1,0 +1,23 @@
+# Configuração pra quem preferir publicar por CLI em vez de colar no painel:
+#   npm install -g wrangler
+#   wrangler login
+#   wrangler secret put SUPABASE_URL
+#   wrangler secret put SUPABASE_SERVICE_ROLE_KEY
+#   wrangler secret put IP_HASH_SALT
+#   wrangler secret put FALLBACK_URL
+#   wrangler deploy
+#
+# Troque SEUDOMINIO.com pelo seu domínio curto antes do deploy.
+
+name = "dnia-links-redirect"
+main = "redirect.js"
+compatibility_date = "2025-01-01"
+
+# A rota captura TODO caminho do domínio curto — é o domínio dos links,
+# não do painel. O painel fica noutro domínio/subdomínio (ver README).
+routes = [
+  { pattern = "SEUDOMINIO.com/*", zone_name = "SEUDOMINIO.com" }
+]
+
+# Os quatro valores acima entram como secret (wrangler secret put), nunca
+# aqui no arquivo — este arquivo vai pro git.

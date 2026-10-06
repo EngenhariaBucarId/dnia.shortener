@@ -1,21 +1,22 @@
 import type { Config } from "tailwindcss";
 
 const config: Config = {
-  darkMode: ["class"],
   content: ["./index.html", "./src/**/*.{ts,tsx}"],
   theme: {
     container: {
       center: true,
       padding: "2rem",
-      screens: { "2xl": "1100px" },
+      screens: { "2xl": "1200px" },
     },
     extend: {
       fontFamily: {
-        // Tipografia dn.ia: display para títulos e números, body para texto,
-        // mono para label/metadado (sempre maiúsculo, com letter-spacing).
-        display: ["Rajdhani", "sans-serif"],
-        sans: ["Inter", "sans-serif"],
-        mono: ["JetBrains Mono", "monospace"],
+        // Tipografia dn.ia (designsystem.dnia.ai): Sora em tudo. "mono" é o
+        // papel de label/metadado (maiúsculo, espaçado), não uma fonte
+        // monoespaçada — igual ao DS. Slug, URL e UTM são código: font-code.
+        display: ["Sora", "ui-sans-serif", "system-ui", "sans-serif"],
+        sans: ["Sora", "ui-sans-serif", "system-ui", "sans-serif"],
+        mono: ["Sora", "ui-sans-serif", "system-ui", "sans-serif"],
+        code: ["ui-monospace", "SFMono-Regular", "Menlo", "Consolas", "monospace"],
       },
       colors: {
         border: "hsl(var(--border))",
@@ -27,10 +28,9 @@ const config: Config = {
         primary: {
           DEFAULT: "hsl(var(--primary))",
           foreground: "hsl(var(--primary-foreground))",
-          light: "hsl(var(--primary-light))",
+          ink: "hsl(var(--primary-ink))",
           dark: "hsl(var(--primary-dark))",
         },
-        violet: "hsl(var(--violet))",
         destructive: {
           DEFAULT: "hsl(var(--destructive))",
           foreground: "hsl(var(--destructive-foreground))",
