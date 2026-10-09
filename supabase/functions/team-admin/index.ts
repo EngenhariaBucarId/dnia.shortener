@@ -20,6 +20,7 @@
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { allowedOrigins } from "./origins.ts";
+import { inviteErrorResponse } from "./invite-errors.ts";
 
 const ROLES = new Set(["admin", "membro"]);
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -108,16 +109,13 @@ Deno.serve(async (req) => {
       { redirectTo: `${PANEL_URL}/definir-senha` }
     );
     if (inviteError || !invited.user) {
-      const exists = /already|registered|exists/i.test(inviteError?.message ?? "");
-      return json(
-        {
-          error: exists
-            ? "Esse e-mail já tem conta. Se a pessoa saiu do time, remova a conta antiga antes de convidar de novo."
-            : "Não foi possível enviar o convite.",
-        },
-        exists ? 409 : 500,
-        origin
-      );
+      console.error("team-admin: convite recusado pelo Auth:", inviteError?.code, inviteError?.message);
+      const { status, error } = inviteErrorResponse({
+        status: inviteError?.status,
+        code: inviteError?.code,
+        message: inviteError?.message,
+      });
+      return json({ error }, status, origin);
     }
 
     const { error: memberError } = await admin.from("members").insert({
