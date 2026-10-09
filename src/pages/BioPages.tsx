@@ -1,15 +1,19 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase, SHORT_DOMAIN } from "@/lib/supabase";
 import type { BioPageRow } from "@/lib/types";
+import { splitBioPages } from "@/lib/bio-pages";
 import { BioPageEditor, CreateBioPageForm } from "@/components/BioPageEditor";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
+
+type Aba = "ativas" | "arquivadas";
 
 export default function BioPages() {
   const [pages, setPages] = useState<BioPageRow[] | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [aba, setAba] = useState<Aba>("ativas");
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -21,18 +25,38 @@ export default function BioPages() {
     if (loadError) {
       setError(loadError.message);
       setPages([]);
-      return;
+      return [];
     }
 
     setPages(data ?? []);
-    setSelectedId((prev) => prev ?? data?.[0]?.id ?? null);
+    return data ?? [];
   }, []);
 
   useEffect(() => {
     load();
   }, [load]);
 
-  const selected = pages?.find((p) => p.id === selectedId) ?? null;
+  const { active, archived } = splitBioPages(pages ?? []);
+  const visible = aba === "ativas" ? active : archived;
+  // A página selecionada precisa estar na aba aberta; se não estiver (acabou de
+  // ser arquivada, reativada ou apagada), cai na primeira da aba.
+  const selected = visible.find((p) => p.id === selectedId) ?? visible[0] ?? null;
+
+  /** Arquivou ou reativou: abre a aba onde a página foi parar, com ela selecionada. */
+  async function handleChanged() {
+    const before = selected;
+    const fresh = await load();
+    const after = fresh.find((p) => p.id === before?.id);
+    if (before && after && after.is_active !== before.is_active) {
+      setAba(after.is_active ? "ativas" : "arquivadas");
+      setSelectedId(after.id);
+    }
+  }
+
+  async function handleDeleted() {
+    setSelectedId(null);
+    await load();
+  }
 
   return (
     <div className="space-y-10">
@@ -52,37 +76,58 @@ export default function BioPages() {
 
       {pages === null ? (
         <Skeleton className="h-10 w-full max-w-md" />
-      ) : pages.length === 0 ? (
-        <p className="text-[13px] text-muted-foreground">
-          Nenhuma página criada ainda.
-        </p>
       ) : (
-        <>
-          <div className="flex flex-wrap gap-2">
-            {pages.map((page) => (
-              <Button
-                key={page.id}
-                variant={page.id === selectedId ? "outline" : "ghost"}
-                size="sm"
-                onClick={() => setSelectedId(page.id)}
-                className={cn("font-code", page.id === selectedId && "border-primary text-primary-ink")}
-              >
-                @{page.slug}
-                {!page.is_active && <Badge variant="destructive">inativa</Badge>}
-              </Button>
-            ))}
-          </div>
+        <div className="space-y-6">
+          <Tabs value={aba} onValueChange={(v) => setAba(v as Aba)}>
+            <TabsList>
+              <TabsTrigger value="ativas">
+                Ativas <span className="ml-1.5 tabular text-muted-foreground">{active.length}</span>
+              </TabsTrigger>
+              <TabsTrigger value="arquivadas">
+                Arquivadas <span className="ml-1.5 tabular text-muted-foreground">{archived.length}</span>
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
 
-          {selected && (
-            <BioPageEditor key={selected.id} page={selected} onChanged={load} />
+          {visible.length === 0 ? (
+            <p className="text-[13px] text-muted-foreground">
+              {aba === "ativas"
+                ? "Nenhuma página no ar. Crie uma acima ou reative uma arquivada."
+                : "Nenhuma página arquivada."}
+            </p>
+          ) : (
+            <>
+              <div className="flex flex-wrap gap-2">
+                {visible.map((page) => (
+                  <Button
+                    key={page.id}
+                    variant={page.id === selected?.id ? "outline" : "ghost"}
+                    size="sm"
+                    onClick={() => setSelectedId(page.id)}
+                    className={cn("font-code", page.id === selected?.id && "border-primary text-primary-ink")}
+                  >
+                    @{page.slug}
+                  </Button>
+                ))}
+              </div>
+
+              {selected && (
+                <BioPageEditor
+                  key={selected.id}
+                  page={selected}
+                  onChanged={handleChanged}
+                  onDeleted={handleDeleted}
+                />
+              )}
+            </>
           )}
-        </>
+        </div>
       )}
 
       <p className="text-[11px] text-muted-foreground">
         As páginas são servidas pelo mesmo domínio curto ({SHORT_DOMAIN}), em
         HTML de servidor — por isso a prévia funciona quando alguém compartilha
-        o endereço.
+        o endereço. Página arquivada sai do ar e o endereço leva pro site da dn.ia.
       </p>
     </div>
   );
