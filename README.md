@@ -58,6 +58,9 @@ entende melhor, o que torna o remix limpo.
 
 ## Setup
 
+> Colocando em produção (Supabase, Vercel e Cloudflare)? Siga
+> [`docs/producao/ROTEIRO.md`](docs/producao/ROTEIRO.md).
+
 ### 1. Supabase
 
 1. Crie um projeto em supabase.com.
