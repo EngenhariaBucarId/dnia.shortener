@@ -1,7 +1,3 @@
--- RETRATO LEGÍVEL do schema. A fonte da verdade são as migrações em
--- supabase/migrations/ (aplicadas em ordem). Mudança nova = migração nova;
--- não edite migração já aplicada. Mantenha este arquivo igual ao resultado
--- de todas as migrações, pra leitura.
 -- ============================================================================
 -- links.dn.ia — schema completo
 -- Rode inteiro no SQL Editor do Supabase (Project > SQL Editor > New query).
