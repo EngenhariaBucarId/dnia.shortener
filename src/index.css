@@ -3,6 +3,27 @@
 @tailwind utilities;
 
 /*
+  Video: fonte de marca do design system dn.ia (designsystem.dnia.ai), só pra
+  momento de marca — nunca texto corrido. Arquivos em public/fonts, servidos
+  pelo próprio painel. font-display: swap mostra Sora até a Video carregar.
+*/
+@font-face {
+  font-family: "Video";
+  src: url("/fonts/Video-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Video";
+  src: url("/fonts/Video-SemiBold.woff2") format("woff2");
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+/*
   Design system dn.ia — tema PREMIUM (Neutral Warm), fonte: designsystem.dnia.ai.
   É o tema indicado pra "plataforma do cliente, institucional e fluxos
   funcionais": base branca, com o warm aparecendo só em divisória, fundo

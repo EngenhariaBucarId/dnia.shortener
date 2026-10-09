@@ -27,7 +27,7 @@ export function BrandLogo({
       />
       <span
         className={cn(
-          "font-display font-semibold tracking-tight text-foreground",
+          "font-brand font-semibold tracking-tight text-foreground",
           size === "lg" ? "text-2xl" : "text-[15px]"
         )}
       >

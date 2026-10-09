@@ -8,7 +8,7 @@
  *
  * Imita só o pedaço da API que o painel usa: from().select/insert/update/
  * delete + eq/order/limit/single, e auth.getSession/onAuthStateChange/
- * signInWithOtp/signOut. As views v_* são calculadas na hora a partir das
+ * signInWithPassword/resetPasswordForEmail/updateUser/signOut, e functions.invoke("team-admin"). As views v_* são calculadas na hora a partir das
  * tabelas, com a mesma regra do schema (bots fora da contagem).
  */
 
@@ -63,6 +63,11 @@ const db: Record<string, Row[]> = {
   clicks: [],
   bio_pages: [],
   bio_page_items: [],
+  members: [
+    { user_id: "demo-user", email: "demo@dnia.com.br", role: "admin", invited_by: null, created_at: new Date(Date.now() - 40 * 86_400_000).toISOString() },
+    { user_id: "demo-dali", email: "dali@dnia.com.br", role: "membro", invited_by: "demo-user", created_at: new Date(Date.now() - 30 * 86_400_000).toISOString() },
+    { user_id: "demo-kaw", email: "kaw@dnia.com.br", role: "membro", invited_by: "demo-user", created_at: new Date(Date.now() - 12 * 86_400_000).toISOString() },
+  ],
 };
 
 LINK_SEEDS.forEach(([slug, title, campaign, rosto, canal, traffic, medium, content], i) => {
@@ -270,6 +275,9 @@ class Query implements PromiseLike<{ data: any; error: any }> {
     this.max = n;
     return this;
   }
+  maybeSingle() {
+    return this.single();
+  }
   single() {
     this.wantSingle = true;
     return this;
@@ -295,6 +303,18 @@ class Query implements PromiseLike<{ data: any; error: any }> {
       }
       table.push(...rows);
       return { data: this.wantSingle ? rows[0] : rows, error: null };
+    }
+
+    // Mesma regra do trigger members_keep_one_admin do schema.sql.
+    if (this.table === "members" && (this.op === "update" || this.op === "delete")) {
+      const hit = table.filter((r) => this.matches(r));
+      const losesAdmin = hit.some(
+        (r) => r.role === "admin" && (this.op === "delete" || (this.payload as Row)?.role !== "admin")
+      );
+      const otherAdmins = table.filter((r) => r.role === "admin" && !hit.includes(r)).length;
+      if (losesAdmin && otherAdmins === 0) {
+        return { data: null, error: { message: "O time precisa de pelo menos um admin." } };
+      }
     }
 
     if (this.op === "update") {
@@ -344,13 +364,25 @@ const auth = {
     listeners.add(cb);
     return { data: { subscription: { unsubscribe: () => listeners.delete(cb) } } };
   },
-  signInWithOtp: async () => {
-    // No demo o "magic link" entra direto, depois de um respiro.
-    setTimeout(() => {
-      session = { user: demoUser, access_token: "demo" };
-      listeners.forEach((cb) => cb("SIGNED_IN", session));
-    }, 1500);
+  // No demo qualquer membro entra com a senha "demo1234".
+  signInWithPassword: async ({ email, password }: { email: string; password: string }) => {
+    await new Promise((r) => setTimeout(r, 400));
+    const member = db.members.find((m) => m.email === email.toLowerCase());
+    if (!member || password !== "demo1234") {
+      return { data: null, error: { message: "Invalid login credentials" } };
+    }
+    session = { user: { id: member.user_id, email: member.email }, access_token: "demo" };
+    listeners.forEach((cb) => cb("SIGNED_IN", session));
+    return { data: { session }, error: null };
+  },
+  resetPasswordForEmail: async () => {
+    await new Promise((r) => setTimeout(r, 400));
     return { data: {}, error: null };
+  },
+  updateUser: async () => {
+    await new Promise((r) => setTimeout(r, 400));
+    listeners.forEach((cb) => cb("USER_UPDATED", session));
+    return { data: { user: session?.user ?? null }, error: null };
   },
   signOut: async () => {
     session = null;
@@ -390,8 +422,55 @@ const storage = {
   }),
 };
 
+// ---------- edge function team-admin ----------
+// Imita supabase/functions/team-admin: o erro volta em error.context (Response).
+
+function fnError(message: string, status: number) {
+  return {
+    data: null,
+    error: { message, context: new Response(JSON.stringify({ error: message }), { status }) },
+  };
+}
+
+const functions = {
+  invoke: async (name: string, { body }: { body: Row }) => {
+    await new Promise((r) => setTimeout(r, 600));
+    if (name !== "team-admin") return fnError("Função desconhecida.", 404);
+    const callerId = session?.user?.id;
+    if (db.members.find((m) => m.user_id === callerId)?.role !== "admin") {
+      return fnError("Só admin pode gerenciar o time.", 403);
+    }
+
+    if (body.action === "invite") {
+      const email = String(body.email ?? "").trim().toLowerCase();
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return fnError("E-mail inválido.", 400);
+      if (db.members.some((m) => m.email === email)) {
+        return fnError("Esse e-mail já tem conta. Se a pessoa saiu do time, remova a conta antiga antes de convidar de novo.", 409);
+      }
+      db.members.push({
+        user_id: uuid(), email, role: body.role === "admin" ? "admin" : "membro",
+        invited_by: callerId, created_at: new Date().toISOString(),
+      });
+      return { data: { ok: true }, error: null };
+    }
+
+    if (body.action === "remove") {
+      if (body.user_id === callerId) return fnError("Você não pode remover a si mesmo.", 400);
+      const target = db.members.find((m) => m.user_id === body.user_id);
+      if (target?.role === "admin" && db.members.filter((m) => m.role === "admin").length <= 1) {
+        return fnError("O time precisa de pelo menos um admin.", 409);
+      }
+      db.members = db.members.filter((m) => m.user_id !== body.user_id);
+      return { data: { ok: true }, error: null };
+    }
+
+    return fnError("Ação desconhecida.", 400);
+  },
+};
+
 export const supabase: any = {
   from: (table: string) => new Query(table),
   auth,
   storage,
+  functions,
 };

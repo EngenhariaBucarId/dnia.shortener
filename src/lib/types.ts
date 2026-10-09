@@ -43,6 +43,17 @@ export type BioPageRow = {
   updated_at: string;
 };
 
+export type MemberRole = "admin" | "membro";
+
+/** Quem está no time. Ter conta no Auth sem linha aqui = sem acesso. */
+export type MemberRow = {
+  user_id: string;
+  email: string;
+  role: MemberRole;
+  invited_by: string | null;
+  created_at: string;
+};
+
 export type BioPageItemRow = {
   id: string;
   page_id: string;
@@ -141,6 +152,15 @@ export type DailyClickRow = {
 export type Database = {
   public: {
     Tables: {
+      members: {
+        Row: MemberRow;
+        Insert: Omit<MemberRow, "created_at" | "invited_by"> & {
+          created_at?: string;
+          invited_by?: string | null;
+        };
+        Update: Partial<Pick<MemberRow, "role">>;
+        Relationships: [];
+      };
       links: {
         Row: LinkRow;
         Insert: LinkInsert;

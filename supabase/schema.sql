@@ -81,44 +81,137 @@ create index if not exists idx_clicks_clicked_at on public.clicks (clicked_at de
 create index if not exists idx_clicks_human on public.clicks (link_id) where not is_bot;
 
 -- ---------------------------------------------------------------------------
+-- MEMBROS DO TIME
+-- ---------------------------------------------------------------------------
+-- A ferramenta é fechada: só entra quem um admin convidou. Ter conta no
+-- Supabase Auth NÃO basta — toda policy abaixo exige uma linha aqui. Assim,
+-- se alguém ligar o cadastro público por engano, a conta nova nasce sem
+-- acesso a nada; e remover alguém do time corta o acesso na hora, sem
+-- esperar o token expirar.
+--
+-- Quem convida e remove é a Edge Function `team-admin` (supabase/functions),
+-- porque criar usuário no Auth exige a service_role, que nunca vai pro
+-- navegador. Trocar papel o admin faz direto pelo painel (policy abaixo).
+create table if not exists public.members (
+  user_id uuid primary key references auth.users (id) on delete cascade,
+  email text not null,
+  role text not null default 'membro',
+  invited_by uuid references auth.users (id) on delete set null,
+  created_at timestamptz not null default now(),
+  constraint members_role_valid check (role in ('admin', 'membro'))
+);
+
+-- SECURITY DEFINER: a policy de members usa is_member(), e com "invoker" a
+-- função consultaria members passando pelo próprio RLS (recursão). search_path
+-- vazio e nomes qualificados, pra função não poder ser sequestrada.
+create or replace function public.is_member()
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select exists (select 1 from public.members m where m.user_id = auth.uid());
+$$;
+
+create or replace function public.is_admin()
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select exists (
+    select 1 from public.members m where m.user_id = auth.uid() and m.role = 'admin'
+  );
+$$;
+
+revoke all on function public.is_member() from public, anon;
+revoke all on function public.is_admin() from public, anon;
+grant execute on function public.is_member() to authenticated;
+grant execute on function public.is_admin() to authenticated;
+
+-- O time nunca pode ficar sem admin: senão ninguém mais convida ninguém e a
+-- única saída é SQL na mão. Vale pra remover e pra rebaixar o último admin.
+create or replace function public.members_keep_one_admin()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  if old.role = 'admin'
+     and (tg_op = 'DELETE' or new.role <> 'admin')
+     and not exists (
+       select 1 from public.members m
+       where m.role = 'admin' and m.user_id <> old.user_id
+     ) then
+    raise exception 'O time precisa de pelo menos um admin.';
+  end if;
+  return case when tg_op = 'DELETE' then old else new end;
+end;
+$$;
+
+drop trigger if exists trg_members_keep_one_admin on public.members;
+create trigger trg_members_keep_one_admin
+  before update or delete on public.members
+  for each row execute function public.members_keep_one_admin();
+
+alter table public.members enable row level security;
+
+-- O time vê quem está no time; só admin muda papel ou remove a linha.
+drop policy if exists "members: membro lê" on public.members;
+create policy "members: membro lê" on public.members
+  for select to authenticated using (public.is_member());
+
+drop policy if exists "members: admin edita" on public.members;
+create policy "members: admin edita" on public.members
+  for update to authenticated using (public.is_admin()) with check (public.is_admin());
+
+drop policy if exists "members: admin remove" on public.members;
+create policy "members: admin remove" on public.members
+  for delete to authenticated using (public.is_admin());
+
+-- Sem policy de insert de propósito: entrar no time só pelo convite (Edge
+-- Function com service_role), que cria a conta e a linha juntas.
+
+-- ---------------------------------------------------------------------------
 -- RLS
 -- ---------------------------------------------------------------------------
--- Modelo: ferramenta interna de time. Quem está autenticado vê e cria tudo;
--- quem não está não vê nada. Cliques só são GRAVADOS pelo Worker, que usa a
--- service_role key (a service_role ignora RLS por definição) — então não
--- existe policy de insert em clicks de propósito: nem o painel pode inventar
--- clique.
+-- Modelo: ferramenta interna de time. Membro do time vê e cria tudo; quem não
+-- é membro — mesmo autenticado — não vê nada. Cliques só são GRAVADOS pelo
+-- Worker, que usa a service_role key (a service_role ignora RLS por definição)
+-- — então não existe policy de insert em clicks de propósito: nem o painel
+-- pode inventar clique.
 alter table public.links enable row level security;
 alter table public.clicks enable row level security;
 
+-- Nomes antigos (versão em que bastava estar autenticado), removidos ao rodar
+-- de novo num banco que já tinha o schema anterior.
 drop policy if exists "links: autenticado lê" on public.links;
-create policy "links: autenticado lê" on public.links
-  for select to authenticated using (true);
-
 drop policy if exists "links: autenticado cria" on public.links;
-create policy "links: autenticado cria" on public.links
-  for insert to authenticated with check (true);
-
 drop policy if exists "links: autenticado edita" on public.links;
-create policy "links: autenticado edita" on public.links
-  for update to authenticated using (true) with check (true);
-
 drop policy if exists "links: autenticado apaga" on public.links;
-create policy "links: autenticado apaga" on public.links
-  for delete to authenticated using (true);
-
 drop policy if exists "clicks: autenticado lê" on public.clicks;
-create policy "clicks: autenticado lê" on public.clicks
-  for select to authenticated using (true);
 
--- OPCIONAL — cinto e suspensório. Se quiser restringir o painel a um domínio
--- de email (mesmo que alguém consiga criar conta), troque as policies de
--- links/clicks por versões com esta condição no lugar de `true`:
---
---   (auth.jwt() ->> 'email') like '%@dnia.com.br'
---
--- A trava principal continua sendo desligar o cadastro público no Supabase
--- Auth (ver README) — isto é só a segunda camada.
+drop policy if exists "links: membro lê" on public.links;
+create policy "links: membro lê" on public.links
+  for select to authenticated using (public.is_member());
+
+drop policy if exists "links: membro cria" on public.links;
+create policy "links: membro cria" on public.links
+  for insert to authenticated with check (public.is_member());
+
+drop policy if exists "links: membro edita" on public.links;
+create policy "links: membro edita" on public.links
+  for update to authenticated using (public.is_member()) with check (public.is_member());
+
+drop policy if exists "links: membro apaga" on public.links;
+create policy "links: membro apaga" on public.links
+  for delete to authenticated using (public.is_member());
+
+drop policy if exists "clicks: membro lê" on public.clicks;
+create policy "clicks: membro lê" on public.clicks
+  for select to authenticated using (public.is_member());
 
 -- ---------------------------------------------------------------------------
 -- VIEWS DE RELATÓRIO
@@ -299,12 +392,15 @@ alter table public.bio_page_items enable row level security;
 -- nunca lê direto do banco (quem serve a página pública é o Worker, com a
 -- service_role, que ignora RLS).
 drop policy if exists "bio_pages: autenticado administra" on public.bio_pages;
-create policy "bio_pages: autenticado administra" on public.bio_pages
-  for all to authenticated using (true) with check (true);
-
 drop policy if exists "bio_items: autenticado administra" on public.bio_page_items;
-create policy "bio_items: autenticado administra" on public.bio_page_items
-  for all to authenticated using (true) with check (true);
+
+drop policy if exists "bio_pages: membro administra" on public.bio_pages;
+create policy "bio_pages: membro administra" on public.bio_pages
+  for all to authenticated using (public.is_member()) with check (public.is_member());
+
+drop policy if exists "bio_items: membro administra" on public.bio_page_items;
+create policy "bio_items: membro administra" on public.bio_page_items
+  for all to authenticated using (public.is_member()) with check (public.is_member());
 
 -- Cliques por item da bio, pro painel mostrar o que performa dentro da página.
 create or replace view public.v_bio_item_stats
@@ -342,13 +438,32 @@ on conflict (id) do update
       allowed_mime_types = excluded.allowed_mime_types;
 
 drop policy if exists "bio-media: autenticado envia" on storage.objects;
-create policy "bio-media: autenticado envia" on storage.objects
-  for insert to authenticated with check (bucket_id = 'bio-media');
-
 drop policy if exists "bio-media: autenticado troca" on storage.objects;
-create policy "bio-media: autenticado troca" on storage.objects
-  for update to authenticated using (bucket_id = 'bio-media');
-
 drop policy if exists "bio-media: autenticado apaga" on storage.objects;
-create policy "bio-media: autenticado apaga" on storage.objects
-  for delete to authenticated using (bucket_id = 'bio-media');
+
+drop policy if exists "bio-media: membro envia" on storage.objects;
+create policy "bio-media: membro envia" on storage.objects
+  for insert to authenticated
+  with check (bucket_id = 'bio-media' and public.is_member());
+
+drop policy if exists "bio-media: membro troca" on storage.objects;
+create policy "bio-media: membro troca" on storage.objects
+  for update to authenticated
+  using (bucket_id = 'bio-media' and public.is_member());
+
+drop policy if exists "bio-media: membro apaga" on storage.objects;
+create policy "bio-media: membro apaga" on storage.objects
+  for delete to authenticated
+  using (bucket_id = 'bio-media' and public.is_member());
+
+-- ---------------------------------------------------------------------------
+-- PRIMEIRO ADMIN (rodar uma vez, à mão)
+-- ---------------------------------------------------------------------------
+-- O convite exige um admin, então o primeiro sai daqui: crie o usuário em
+-- Authentication > Users > Add user (com senha) e rode, trocando o e-mail:
+--
+--   insert into public.members (user_id, email, role)
+--   select id, email, 'admin' from auth.users where email = 'voce@dnia.com.br'
+--   on conflict (user_id) do update set role = 'admin';
+--
+-- Depois disso, todo o resto do time entra pelo menu Time do painel.
