@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  Archive,
+  ArchiveRestore,
   ArrowDown,
   ArrowUp,
   Check,
@@ -29,6 +31,15 @@ import {
 } from "@/lib/image";
 import { BIO_BACKGROUNDS, type BioBackgroundKey } from "../../cloudflare-worker/redirect.js";
 import { BioPreview } from "@/components/BioPreview";
+import { bioPageImageUrls } from "@/lib/bio-pages";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -97,10 +108,15 @@ function UploadButton({
 export function BioPageEditor({
   page,
   onChanged,
+  onDeleted,
 }: {
   page: BioPageRow;
   onChanged: () => void;
+  onDeleted: () => void;
 }) {
+  const [archiving, setArchiving] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [items, setItems] = useState<ItemWithStats[] | null>(null);
   const [title, setTitle] = useState(page.title);
   const [subtitle, setSubtitle] = useState(page.subtitle ?? "");
@@ -214,6 +230,41 @@ export function BioPageEditor({
     discardIfUnsaved(backgroundUrl, page.background_url);
     setBackgroundUrl("");
     if (background === "imagem") setBackground("premium");
+  }
+
+  /** Arquivar = is_active false: o Worker só serve página ativa. Nada é apagado. */
+  async function toggleArchived() {
+    setPageError(null);
+    setArchiving(true);
+    const { error: updateError } = await supabase
+      .from("bio_pages")
+      .update({ is_active: !page.is_active })
+      .eq("id", page.id);
+    setArchiving(false);
+    if (updateError) return setPageError(updateError.message);
+    onChanged();
+  }
+
+  /**
+   * Apaga a página (os botões vão junto, por cascata no banco) e as imagens do
+   * Storage. Os links curtos dos botões ficam: podem estar compartilhados fora
+   * da bio, e os cliques são histórico.
+   */
+  async function deletePage() {
+    setPageError(null);
+    setDeleting(true);
+    const { error: deleteError } = await supabase.from("bio_pages").delete().eq("id", page.id);
+    if (deleteError) {
+      setDeleting(false);
+      return setPageError(deleteError.message);
+    }
+    // Salvas e as enviadas mas ainda não salvas, pra não sobrar nada no Storage.
+    removeBioImages([
+      ...new Set([...bioPageImageUrls(page), avatarUrl, backgroundUrl, logoUrl].filter(Boolean)),
+    ]);
+    setDeleting(false);
+    setConfirmDelete(false);
+    onDeleted();
   }
 
   async function savePage() {
@@ -567,8 +618,58 @@ export function BioPageEditor({
               </span>
             ) : null}
           </div>
+
+          {/* ---- arquivar / reativar / apagar ---- */}
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-border-subtle bg-muted p-4">
+            <p className="max-w-[440px] text-[12px] leading-relaxed text-muted-foreground">
+              {page.is_active
+                ? "Arquivar tira a página do ar (o endereço passa a levar pro site da dn.ia) sem apagar nada. Dá pra reativar depois."
+                : "Esta página está arquivada: fora do ar, mas com tudo guardado."}
+            </p>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button variant="outline" size="sm" onClick={toggleArchived} disabled={archiving}>
+                {page.is_active ? <Archive /> : <ArchiveRestore />}
+                {archiving ? "Salvando…" : page.is_active ? "Arquivar" : "Reativar"}
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                onClick={() => setConfirmDelete(true)}
+              >
+                <Trash2 />
+                Apagar página
+              </Button>
+            </div>
+          </div>
         </CardContent>
       </Card>
+
+      <Dialog open={confirmDelete} onOpenChange={(open) => !deleting && setConfirmDelete(open)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Apagar @{page.slug}?</DialogTitle>
+            <DialogDescription>
+              Isso não pode ser desfeito. A página, os botões dela e as imagens enviadas
+              são apagados, e {SHORT_DOMAIN}/@{page.slug} passa a levar pro site da dn.ia.
+              Os links curtos dos botões continuam na tela de Links, com os cliques.
+            </DialogDescription>
+          </DialogHeader>
+          {pageError && (
+            <p role="alert" className="text-[13px] text-destructive">
+              {pageError}
+            </p>
+          )}
+          <DialogFooter>
+            <Button variant="destructive" onClick={deletePage} disabled={deleting}>
+              {deleting ? "Apagando…" : "Apagar de vez"}
+            </Button>
+            <Button variant="ghost" onClick={() => setConfirmDelete(false)} disabled={deleting}>
+              Cancelar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Card>
         <CardHeader>
