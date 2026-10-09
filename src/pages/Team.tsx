@@ -31,22 +31,9 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { formatDate } from "@/lib/utils";
+import { functionErrorMessage } from "@/lib/function-error";
 
 const ROLE_LABEL: Record<MemberRole, string> = { admin: "Admin", membro: "Membro" };
-
-/** Erro devolvido pela Edge Function vem no corpo; supabase-js embrulha. */
-async function functionError(error: unknown): Promise<string> {
-  const context = (error as { context?: Response })?.context;
-  if (context && typeof context.json === "function") {
-    try {
-      const body = await context.json();
-      if (body?.error) return String(body.error);
-    } catch {
-      /* corpo não é JSON */
-    }
-  }
-  return "Não foi possível concluir. Tente de novo.";
-}
 
 /**
  * Time — só admin. Convidar e remover passam pela Edge Function `team-admin`
@@ -96,7 +83,7 @@ export default function Team() {
     });
     setInviting(false);
     if (invokeError) {
-      setInviteMsg({ ok: false, text: await functionError(invokeError) });
+      setInviteMsg({ ok: false, text: await functionErrorMessage(invokeError) });
       return;
     }
     setInviteMsg({
@@ -132,7 +119,7 @@ export default function Team() {
     });
     setRemoveBusy(false);
     if (invokeError) {
-      setError(await functionError(invokeError));
+      setError(await functionErrorMessage(invokeError));
     }
     setRemoving(null);
     load();
