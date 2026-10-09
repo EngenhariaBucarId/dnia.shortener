@@ -68,7 +68,7 @@ entende melhor, o que torna o remix limpo.
    Editor, colando cada arquivo, ou `supabase db push` com a CLI). Elas criam
    as tabelas, a lista de membros do time (`members`), as policies e o bucket
    `bio-media`. Depois, rode `supabase/tests/rls.sql`: o resultado esperado é
-   um erro com a mensagem `OK: 9 verificações de RLS` (o teste desfaz tudo o
+   um erro com a mensagem `OK: 14 verificações de RLS` (o teste desfaz tudo o
    que cria). `supabase/schema.sql` é só um retrato legível do resultado —
    mudança nova entra como migração nova.
 3. **Desligue o cadastro público.** Em **Authentication > Sign In / Providers**,

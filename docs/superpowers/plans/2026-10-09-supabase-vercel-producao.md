@@ -1449,7 +1449,7 @@ MCP `execute_sql`: `select id, public from storage.buckets;` → `bio-media | tr
 - [ ] **Step 4: Rodar a verificação de RLS**
 
 MCP `execute_sql` com o conteúdo de `supabase/tests/rls.sql`.
-Expected: erro `OK: 9 verificações de RLS`. Qualquer `FALHOU N` → parar, investigar (fetch `https://supabase.com/docs/guides/monitoring-and-debugging.md` antes), corrigir com **migração nova** (`supabase/migrations/20261009000100_<nome>.sql`), aplicar e rodar de novo.
+Expected: erro `OK: 14 verificações de RLS` (eram 9; a revisão final pediu cobertura de bio, cliques e rebaixamento do último admin). Qualquer `FALHOU N` → parar, investigar (fetch `https://supabase.com/docs/guides/monitoring-and-debugging.md` antes), corrigir com **migração nova** (`supabase/migrations/20261009000100_<nome>.sql`), aplicar e rodar de novo.
 
 Confirmar que nada ficou: `select count(*) from auth.users where email like 'rls-%@teste.invalid';` → `0`.
 

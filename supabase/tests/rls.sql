@@ -2,8 +2,10 @@
 -- Editor). Tudo acontece dentro de um DO que SEMPRE termina em exceção: o
 -- Postgres desfaz tudo, então nenhum usuário ou link de teste fica no banco.
 --
--- Resultado esperado: ERRO com a mensagem "OK: 9 verificações de RLS".
--- Qualquer "FALHOU N: ..." aponta a regra quebrada.
+-- Resultado esperado: ERRO com a mensagem "OK: 14 verificações de RLS".
+-- Qualquer "FALHOU N: ..." aponta a regra quebrada. Pode rodar de novo a
+-- qualquer momento, com o time real já cadastrado: os admins reais são
+-- rebaixados só dentro do teste (e voltam com o rollback).
 do $$
 declare
   admin_id    uuid := '00000000-0000-4000-8000-0000000000a1';
@@ -19,8 +21,18 @@ begin
   insert into public.members (user_id, email, role) values
     (admin_id,  'rls-admin@teste.invalid',  'admin'),
     (membro_id, 'rls-membro@teste.invalid', 'membro');
-  insert into public.links (slug, destination_url, final_url)
-    values ('rls-teste-1', 'https://dnia.ai', 'https://dnia.ai');
+  -- Isola o teste do time real: com o admin de teste já inserido, os admins
+  -- reais viram membro (o trigger aceita, porque sobra um admin). Assim o
+  -- admin de teste é o ÚNICO admin, e as checagens 9 e 14 valem sempre.
+  update public.members set role = 'membro'
+    where role = 'admin' and user_id not in (admin_id, membro_id, estranho_id);
+
+  insert into public.links (id, slug, destination_url, final_url)
+    values ('00000000-0000-4000-8000-0000000000b1', 'rls-teste-1', 'https://dnia.ai', 'https://dnia.ai');
+  insert into public.clicks (link_id)
+    values ('00000000-0000-4000-8000-0000000000b1');
+  insert into public.bio_pages (slug, title)
+    values ('rls-teste-bio', 'RLS teste');
 
   -- 1. anon (sem login) não lê links
   execute 'set local role anon';
@@ -55,6 +67,16 @@ begin
   if public.is_member() then raise exception 'FALHOU 4: is_member() verdadeiro para conta sem convite'; end if;
   ok := ok + 1;
 
+  -- 10. não lê páginas de bio
+  select count(*) into n from public.bio_pages;
+  if n <> 0 then raise exception 'FALHOU 10: conta sem convite leu % páginas de bio', n; end if;
+  ok := ok + 1;
+
+  -- 11. não lê cliques
+  select count(*) into n from public.clicks;
+  if n <> 0 then raise exception 'FALHOU 11: conta sem convite leu % cliques', n; end if;
+  ok := ok + 1;
+
   -- membro comum
   perform set_config('request.jwt.claims',
     json_build_object('sub', membro_id, 'role', 'authenticated')::text, true);
@@ -67,6 +89,15 @@ begin
   -- 6. cria link
   insert into public.links (slug, destination_url, final_url)
     values ('rls-teste-3', 'https://dnia.ai', 'https://dnia.ai');
+  ok := ok + 1;
+
+  -- 12. cria página de bio
+  insert into public.bio_pages (slug, title) values ('rls-teste-bio2', 'RLS teste 2');
+  ok := ok + 1;
+
+  -- 13. lê os cliques do link
+  select count(*) into n from public.clicks where link_id = '00000000-0000-4000-8000-0000000000b1';
+  if n <> 1 then raise exception 'FALHOU 13: membro não leu o clique (%)', n; end if;
   ok := ok + 1;
 
   -- 7. não se promove a admin (RLS filtra: 0 linhas alteradas)
@@ -90,6 +121,15 @@ begin
   begin
     delete from public.members where user_id = admin_id;
     raise exception 'FALHOU 9: o último admin foi removido';
+  exception when raise_exception then
+    if sqlerrm like 'FALHOU%' then raise; end if;
+  end;
+  ok := ok + 1;
+
+  -- 14. não rebaixa o último admin
+  begin
+    update public.members set role = 'membro' where user_id = admin_id;
+    raise exception 'FALHOU 14: o último admin foi rebaixado';
   exception when raise_exception then
     if sqlerrm like 'FALHOU%' then raise; end if;
   end;
