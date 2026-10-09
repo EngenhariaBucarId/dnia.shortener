@@ -107,8 +107,14 @@ create table if not exists public.members (
 
 -- SECURITY DEFINER: a policy de members usa is_member(), e com "invoker" a
 -- função consultaria members passando pelo próprio RLS (recursão). search_path
--- vazio e nomes qualificados, pra função não poder ser sequestrada.
-create or replace function public.is_member()
+-- vazio e nomes qualificados, pra função não poder ser sequestrada. Ficam no
+-- schema private, que a API REST não publica (ninguém chama por /rpc); o papel
+-- authenticated só precisa de USAGE no schema e EXECUTE nelas pras policies.
+create schema if not exists private;
+revoke all on schema private from public, anon;
+grant usage on schema private to authenticated;
+
+create or replace function private.is_member()
 returns boolean
 language sql
 stable
@@ -118,7 +124,7 @@ as $$
   select exists (select 1 from public.members m where m.user_id = auth.uid());
 $$;
 
-create or replace function public.is_admin()
+create or replace function private.is_admin()
 returns boolean
 language sql
 stable
@@ -130,10 +136,10 @@ as $$
   );
 $$;
 
-revoke all on function public.is_member() from public, anon;
-revoke all on function public.is_admin() from public, anon;
-grant execute on function public.is_member() to authenticated;
-grant execute on function public.is_admin() to authenticated;
+revoke all on function private.is_member() from public, anon;
+revoke all on function private.is_admin() from public, anon;
+grant execute on function private.is_member() to authenticated;
+grant execute on function private.is_admin() to authenticated;
 
 -- O time nunca pode ficar sem admin: senão ninguém mais convida ninguém e a
 -- única saída é SQL na mão. Vale pra remover e pra rebaixar o último admin.
@@ -165,15 +171,15 @@ alter table public.members enable row level security;
 -- O time vê quem está no time; só admin muda papel ou remove a linha.
 drop policy if exists "members: membro lê" on public.members;
 create policy "members: membro lê" on public.members
-  for select to authenticated using (public.is_member());
+  for select to authenticated using (private.is_member());
 
 drop policy if exists "members: admin edita" on public.members;
 create policy "members: admin edita" on public.members
-  for update to authenticated using (public.is_admin()) with check (public.is_admin());
+  for update to authenticated using (private.is_admin()) with check (private.is_admin());
 
 drop policy if exists "members: admin remove" on public.members;
 create policy "members: admin remove" on public.members
-  for delete to authenticated using (public.is_admin());
+  for delete to authenticated using (private.is_admin());
 
 -- Sem policy de insert de propósito: entrar no time só pelo convite (Edge
 -- Function com service_role), que cria a conta e a linha juntas.
@@ -199,23 +205,23 @@ drop policy if exists "clicks: autenticado lê" on public.clicks;
 
 drop policy if exists "links: membro lê" on public.links;
 create policy "links: membro lê" on public.links
-  for select to authenticated using (public.is_member());
+  for select to authenticated using (private.is_member());
 
 drop policy if exists "links: membro cria" on public.links;
 create policy "links: membro cria" on public.links
-  for insert to authenticated with check (public.is_member());
+  for insert to authenticated with check (private.is_member());
 
 drop policy if exists "links: membro edita" on public.links;
 create policy "links: membro edita" on public.links
-  for update to authenticated using (public.is_member()) with check (public.is_member());
+  for update to authenticated using (private.is_member()) with check (private.is_member());
 
 drop policy if exists "links: membro apaga" on public.links;
 create policy "links: membro apaga" on public.links
-  for delete to authenticated using (public.is_member());
+  for delete to authenticated using (private.is_member());
 
 drop policy if exists "clicks: membro lê" on public.clicks;
 create policy "clicks: membro lê" on public.clicks
-  for select to authenticated using (public.is_member());
+  for select to authenticated using (private.is_member());
 
 -- ---------------------------------------------------------------------------
 -- VIEWS DE RELATÓRIO
@@ -321,6 +327,7 @@ alter table public.links
 create or replace function public.touch_updated_at()
 returns trigger
 language plpgsql
+set search_path = ''
 as $$
 begin
   new.updated_at = now();
@@ -400,11 +407,11 @@ drop policy if exists "bio_items: autenticado administra" on public.bio_page_ite
 
 drop policy if exists "bio_pages: membro administra" on public.bio_pages;
 create policy "bio_pages: membro administra" on public.bio_pages
-  for all to authenticated using (public.is_member()) with check (public.is_member());
+  for all to authenticated using (private.is_member()) with check (private.is_member());
 
 drop policy if exists "bio_items: membro administra" on public.bio_page_items;
 create policy "bio_items: membro administra" on public.bio_page_items
-  for all to authenticated using (public.is_member()) with check (public.is_member());
+  for all to authenticated using (private.is_member()) with check (private.is_member());
 
 -- Cliques por item da bio, pro painel mostrar o que performa dentro da página.
 create or replace view public.v_bio_item_stats
@@ -448,17 +455,17 @@ drop policy if exists "bio-media: autenticado apaga" on storage.objects;
 drop policy if exists "bio-media: membro envia" on storage.objects;
 create policy "bio-media: membro envia" on storage.objects
   for insert to authenticated
-  with check (bucket_id = 'bio-media' and public.is_member());
+  with check (bucket_id = 'bio-media' and private.is_member());
 
 drop policy if exists "bio-media: membro troca" on storage.objects;
 create policy "bio-media: membro troca" on storage.objects
   for update to authenticated
-  using (bucket_id = 'bio-media' and public.is_member());
+  using (bucket_id = 'bio-media' and private.is_member());
 
 drop policy if exists "bio-media: membro apaga" on storage.objects;
 create policy "bio-media: membro apaga" on storage.objects
   for delete to authenticated
-  using (bucket_id = 'bio-media' and public.is_member());
+  using (bucket_id = 'bio-media' and private.is_member());
 
 -- ---------------------------------------------------------------------------
 -- PRIMEIRO ADMIN (rodar uma vez, à mão)

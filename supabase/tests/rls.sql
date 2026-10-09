@@ -63,8 +63,8 @@ begin
   end;
   ok := ok + 1;
 
-  -- 4. is_member() é falso
-  if public.is_member() then raise exception 'FALHOU 4: is_member() verdadeiro para conta sem convite'; end if;
+  -- 4. private.is_member() é falso
+  if private.is_member() then raise exception 'FALHOU 4: is_member() verdadeiro para conta sem convite'; end if;
   ok := ok + 1;
 
   -- 10. não lê páginas de bio
