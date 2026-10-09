@@ -8,7 +8,7 @@
     "dev:demo": "vite --mode demo",
     "build": "tsc -b && vite build",
     "typecheck": "tsc --noEmit",
-    "test": "node --experimental-strip-types --no-warnings tests/utm.test.ts && node --experimental-strip-types --no-warnings tests/origins.test.ts && node --no-warnings tests/worker.test.mjs && node --no-warnings tests/bio.test.mjs",
+    "test": "node --experimental-strip-types --no-warnings tests/utm.test.ts && node --experimental-strip-types --no-warnings tests/origins.test.ts && node --experimental-strip-types --no-warnings tests/safe-next-path.test.ts && node --no-warnings tests/worker.test.mjs && node --no-warnings tests/bio.test.mjs",
     "preview": "vite preview"
   },
   "dependencies": {
