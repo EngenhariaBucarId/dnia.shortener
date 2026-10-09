@@ -33,6 +33,11 @@ export function bioPageHtml(
   options?: { preview?: boolean }
 ): string;
 
+export function supabaseHeaders(
+  env: Record<string, string | undefined>,
+  extra?: Record<string, string>
+): Record<string, string>;
+
 declare const worker: {
   fetch(request: Request, env: Record<string, string>): Promise<Response>;
 };
