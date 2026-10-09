@@ -1,5 +1,5 @@
 import { Link as RouterLink, useLocation } from "react-router-dom";
-import { BarChart3, LinkIcon, LogOut, UserSquare2 } from "lucide-react";
+import { BarChart3, LinkIcon, LogOut, UserSquare2, Users } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { SHORT_DOMAIN } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
@@ -12,8 +12,12 @@ const NAV = [
   { to: "/bio", label: "Link na bio", icon: UserSquare2 },
 ];
 
+// Só aparece pra admin (a rota também é guardada, e o banco barra quem não é).
+const ADMIN_NAV = [{ to: "/time", label: "Time", icon: Users }];
+
 export function AppShell({ children }: { children: React.ReactNode }) {
-  const { user, signOut } = useAuth();
+  const { user, isAdmin, signOut } = useAuth();
+  const nav = isAdmin ? [...NAV, ...ADMIN_NAV] : NAV;
   const { pathname } = useLocation();
 
   return (
@@ -26,7 +30,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
           {/* Desktop: navegação no topo. No celular ela vai pra barra inferior. */}
           <nav className="hidden items-center gap-1 sm:flex">
-            {NAV.map(({ to, label, icon: Icon }) => (
+            {nav.map(({ to, label, icon: Icon }) => (
               <RouterLink
                 key={to}
                 to={to}
@@ -68,8 +72,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         {children}
       </main>
 
-      <nav className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-3 border-t border-border-subtle bg-card/95 backdrop-blur-xl sm:hidden">
-        {NAV.map(({ to, label, icon: Icon }) => (
+      <nav className={cn("fixed inset-x-0 bottom-0 z-40 grid border-t border-border-subtle bg-card/95 backdrop-blur-xl sm:hidden", nav.length === 4 ? "grid-cols-4" : "grid-cols-3")}>
+        {nav.map(({ to, label, icon: Icon }) => (
           <RouterLink
             key={to}
             to={to}

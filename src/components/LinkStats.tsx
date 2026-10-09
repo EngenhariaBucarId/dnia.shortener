@@ -1,12 +1,12 @@
 import { Suspense, lazy, useEffect, useState } from "react";
 import { ExternalLink } from "lucide-react";
-import { supabase, shortUrl } from "@/lib/supabase";
+import { supabase } from "@/lib/supabase";
 import type { ClickRow, DailyClickRow, LinkRow } from "@/lib/types";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { RankedList, StatTile, groupCount } from "@/components/StatTile";
 import { formatDateTime } from "@/lib/utils";
+import { safeExternalHref } from "@/lib/utm";
 
 /**
  * O gráfico carrega sob demanda: a biblioteca de chart é ~400 kB, e quem só
@@ -64,117 +64,107 @@ export function LinkStats({ link }: { link: LinkRow }) {
 
   if (clicks === null) {
     return (
-      <Card>
-        <CardContent className="space-y-4 pt-6">
-          <Skeleton className="h-8 w-48" />
-          <Skeleton className="h-[220px] w-full" />
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Skeleton className="h-24" />
-            <Skeleton className="h-24" />
-          </div>
-        </CardContent>
-      </Card>
+      <div className="space-y-4" aria-busy="true">
+        <Skeleton className="h-6 w-48" />
+        <Skeleton className="h-[220px] w-full" />
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Skeleton className="h-24" />
+          <Skeleton className="h-24" />
+        </div>
+      </div>
     );
   }
 
   // Preview de link (WhatsApp, Instagram, LinkedIn) busca a URL sem ninguém
   // ter clicado. Conta como acesso de bot e fica FORA da métrica de clique,
   // senão todo link compartilhado nasce com cliques fantasma.
+  const destinationHref = safeExternalHref(link.final_url);
   const human = clicks.filter((c) => !c.is_bot);
   const botHits = clicks.length - human.length;
   const unique = new Set(human.map((c) => c.ip_hash).filter(Boolean)).size;
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex flex-wrap items-center gap-x-3 gap-y-2">
-          <span className="font-code text-sm font-medium text-primary-ink">
-            {shortUrl(link.slug)}
-          </span>
-          {link.title && (
-            <span className="text-sm font-normal text-muted-foreground">
-              {link.title}
-            </span>
-          )}
+    <div className="space-y-8">
+      {/* Slug e título já estão na linha do link, logo acima. */}
+      <div className="flex flex-wrap items-center gap-2">
+        {/* final_url vem do banco: só vira link se for http/https. */}
+        {destinationHref ? (
           <a
-            href={link.final_url}
+            href={destinationHref}
             target="_blank"
-            rel="noreferrer"
+            rel="noopener noreferrer"
             className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-primary-ink"
           >
             abrir destino <ExternalLink className="h-3 w-3" />
           </a>
-        </CardTitle>
+        ) : (
+          <Badge variant="destructive">destino inválido</Badge>
+        )}
+        {link.campaign && <Badge variant="primary">{link.campaign}</Badge>}
+        {link.rosto && <Badge>{link.rosto}</Badge>}
+        {link.canal && <Badge>{link.canal}</Badge>}
+        {!link.is_active && <Badge variant="destructive">inativo</Badge>}
+      </div>
 
-        <div className="flex flex-wrap gap-2 pt-1">
-          {link.campaign && <Badge variant="primary">{link.campaign}</Badge>}
-          {link.rosto && <Badge>{link.rosto}</Badge>}
-          {link.canal && <Badge>{link.canal}</Badge>}
-          {!link.is_active && <Badge variant="destructive">inativo</Badge>}
+      {error && <p className="text-[13px] text-destructive">{error}</p>}
+
+      <div className="flex flex-wrap gap-x-10 gap-y-4">
+        <StatTile label="Cliques" value={human.length} />
+        <StatTile
+          label="Cliques únicos"
+          value={unique}
+          hint="por IP (hash), sem bots"
+        />
+        <StatTile
+          label="Último clique"
+          value={
+            human[0] ? formatDateTime(human[0].clicked_at).split(" ")[0] : "—"
+          }
+          hint={human[0] ? formatDateTime(human[0].clicked_at) : undefined}
+        />
+        <StatTile
+          label="Prévias / bots"
+          value={botHits}
+          hint="não contam como clique"
+        />
+      </div>
+
+      <div>
+        <span className="eyebrow">Cliques por dia</span>
+        <div className="mt-3">
+          <Suspense fallback={<Skeleton className="h-[220px] w-full" />}>
+            <DailyClicksChart
+              data={daily.map((d) => ({ day: d.day, clicks: d.clicks }))}
+            />
+          </Suspense>
         </div>
-      </CardHeader>
+      </div>
 
-      <CardContent className="space-y-8">
-        {error && <p className="text-[13px] text-destructive">{error}</p>}
+      <div className="grid gap-x-10 gap-y-8 sm:grid-cols-2 lg:grid-cols-4">
+        <RankedList
+          title="Origem (utm_source)"
+          rows={groupCount(human.map((c) => c.utm_source), "(sem utm)")}
+        />
+        <RankedList
+          title="Referrer"
+          rows={groupCount(human.map((c) => c.referrer_host), "(direto)")}
+        />
+        <RankedList
+          title="Dispositivo"
+          rows={groupCount(human.map((c) => c.device_type))}
+        />
+        <RankedList
+          title="País"
+          rows={groupCount(human.map((c) => c.country))}
+        />
+      </div>
 
-        <div className="flex flex-wrap gap-x-10 gap-y-4">
-          <StatTile label="Cliques" value={human.length} />
-          <StatTile
-            label="Cliques únicos"
-            value={unique}
-            hint="por IP (hash), sem bots"
-          />
-          <StatTile
-            label="Último clique"
-            value={
-              human[0] ? formatDateTime(human[0].clicked_at).split(" ")[0] : "—"
-            }
-            hint={human[0] ? formatDateTime(human[0].clicked_at) : undefined}
-          />
-          <StatTile
-            label="Prévias / bots"
-            value={botHits}
-            hint="não contam como clique"
-          />
-        </div>
-
-        <div>
-          <span className="eyebrow">Cliques por dia</span>
-          <div className="mt-3">
-            <Suspense fallback={<Skeleton className="h-[220px] w-full" />}>
-              <DailyClicksChart
-                data={daily.map((d) => ({ day: d.day, clicks: d.clicks }))}
-              />
-            </Suspense>
-          </div>
-        </div>
-
-        <div className="grid gap-x-10 gap-y-8 sm:grid-cols-2 lg:grid-cols-4">
-          <RankedList
-            title="Origem (utm_source)"
-            rows={groupCount(human.map((c) => c.utm_source), "(sem utm)")}
-          />
-          <RankedList
-            title="Referrer"
-            rows={groupCount(human.map((c) => c.referrer_host), "(direto)")}
-          />
-          <RankedList
-            title="Dispositivo"
-            rows={groupCount(human.map((c) => c.device_type))}
-          />
-          <RankedList
-            title="País"
-            rows={groupCount(human.map((c) => c.country))}
-          />
-        </div>
-
-        <div className="rounded-md border border-border-subtle bg-muted p-4">
-          <span className="eyebrow">Destino final</span>
-          <p className="mt-2 break-all font-code text-[11px] leading-relaxed text-muted-foreground">
-            {link.final_url}
-          </p>
-        </div>
-      </CardContent>
-    </Card>
+      <div className="rounded-md border border-border-subtle bg-muted p-4">
+        <span className="eyebrow">Destino final</span>
+        <p className="mt-2 break-all font-code text-[11px] leading-relaxed text-muted-foreground">
+          {link.final_url}
+        </p>
+      </div>
+    </div>
   );
 }

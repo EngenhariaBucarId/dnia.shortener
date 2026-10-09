@@ -31,7 +31,10 @@ redirect.
   mesmo relatório. Foto, logo da empresa (no rodapé) e imagem de fundo sobem direto do painel (Supabase
   Storage, já redimensionadas no navegador), com 4 fundos prontos do design
   system e preview ao vivo — o preview é o mesmo HTML que o Worker publica.
-- **Login por magic link**, só pra quem já foi convidado no Supabase.
+- **Acesso fechado, por convite.** Login com e-mail e senha, "esqueci a senha"
+  e uma tela **Time** onde o admin convida, troca papel (admin ou membro) e
+  remove pessoas. Ter conta no Supabase não basta: o banco só libera quem está
+  na lista de membros, e remover alguém corta o acesso na hora.
 
 ## Arquitetura
 
@@ -59,20 +62,52 @@ entende melhor, o que torna o remix limpo.
 
 1. Crie um projeto em supabase.com.
 2. **SQL Editor > New query**, cole `supabase/schema.sql` e rode. É idempotente,
-   pode rodar de novo sem quebrar nada. Ele também cria o bucket `bio-media`
-   (Storage) das fotos da bio — rode de novo sempre que o schema mudar.
-3. **⚠️ Desligue o cadastro público** — este é o passo que não pode ser
-   esquecido. Em **Authentication > Sign In / Providers > Email**, desmarque
-   *Enable sign-ups* (ou, em projetos mais novos, ligue *Confirm email* e
-   desative *Allow new users to sign up*). Sem isso, qualquer pessoa cria conta,
-   vira `authenticated` e passa a ver todos os seus links e cliques.
-4. Convide o time em **Authentication > Users > Add user > Send invitation**
-   (Dali, Kaw, Gustavo, quem mais precisar).
-5. Em **Project Settings > API**, copie a `Project URL` e a `anon` key.
+   pode rodar de novo sem quebrar nada. Ele cria as tabelas, a lista de membros
+   do time (`members`), as policies e o bucket `bio-media` (Storage) das fotos
+   da bio — rode de novo sempre que o schema mudar.
+3. **Desligue o cadastro público.** Em **Authentication > Sign In / Providers**,
+   desative *Allow new users to sign up* e *Allow anonymous sign-ins*, e deixe
+   o provedor **Email** ligado (é o login com senha). Desde a versão com tabela
+   de membros, uma conta criada por fora já nasce sem acesso a nada — mas não
+   há motivo pra deixar a porta aberta.
+4. **Crie o primeiro admin.** Em **Authentication > Users > Add user**, crie o
+   seu usuário com senha. Depois, no SQL Editor, rode (trocando o e-mail):
+
+   ```sql
+   insert into public.members (user_id, email, role)
+   select id, email, 'admin' from auth.users where email = 'voce@dnia.com.br'
+   on conflict (user_id) do update set role = 'admin';
+   ```
+
+   O resto do time entra pelo menu **Time** do painel (convite por e-mail).
+5. **Redirect URLs.** Em **Authentication > URL Configuration**, coloque a URL
+   do painel em *Site URL* e adicione `https://SEU-PAINEL/definir-senha` em
+   *Redirect URLs* (é pra onde levam o convite e o "esqueci a senha"). Em
+   desenvolvimento, adicione também `http://localhost:8080/definir-senha`.
+6. Em **Project Settings > API**, copie a `Project URL` e a `anon` key.
 
 A `anon` key é pública por natureza — ela vai dentro do bundle do navegador. A
 segurança está no RLS + Auth, não em esconder essa chave. A `service_role` key
-é que nunca sai do servidor: só o Worker a usa.
+é que nunca sai do servidor: só o Worker e a Edge Function a usam.
+
+### 1b. Edge Function de gestão do time
+
+Convidar e remover gente mexe no Supabase Auth, o que exige a `service_role`.
+Por isso essas duas ações rodam em `supabase/functions/team-admin`, que confere
+que quem chamou é admin antes de fazer qualquer coisa.
+
+Pelo painel do Supabase: **Edge Functions > Deploy a new function > Via
+editor**, nome `team-admin`, cole `supabase/functions/team-admin/index.ts`.
+Ou pela CLI:
+
+```bash
+supabase functions deploy team-admin
+supabase secrets set PANEL_URL=https://SEU-PAINEL   # sem barra no fim
+```
+
+`PANEL_URL` é obrigatório: é pra onde o e-mail de convite leva e a única origem
+que o CORS da função aceita. `SUPABASE_URL`, `SUPABASE_ANON_KEY` e
+`SUPABASE_SERVICE_ROLE_KEY` o Supabase já injeta.
 
 ### 2. Variáveis do app
 
@@ -85,14 +120,13 @@ cp .env.example .env
 
 ```bash
 npm install
-npm run dev     # http://localhost:8080
-npm test        # 35 verificações da lógica de UTM, do Worker e da bio
+npm run dev       # http://localhost:8080
+npm run dev:demo  # mesmo painel com dados de exemplo, sem Supabase
+                  # (entre com demo@dnia.com.br / demo1234, que é admin)
+npm test          # verificações da lógica de UTM, do Worker e da bio
 npm run build
 ```
 
-Para o magic link funcionar em desenvolvimento, adicione
-`http://localhost:8080` em **Authentication > URL Configuration > Redirect URLs**
-no Supabase.
 
 ### 4. Cloudflare Worker (o redirect)
 

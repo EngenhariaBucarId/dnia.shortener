@@ -215,6 +215,22 @@ export function validateSlug(slug: string): string | null {
   return null;
 }
 
+/**
+ * href seguro pra um destino que veio do BANCO. A validação do formulário não
+ * basta: qualquer membro pode gravar direto pela API, e o React 18 só avisa
+ * (não bloqueia) um href "javascript:". Devolve a URL normalizada se for
+ * http/https, ou null — e aí quem renderiza não monta link.
+ */
+export function safeExternalHref(value: string | null | undefined): string | null {
+  if (!value) return null;
+  try {
+    const parsed = new URL(value);
+    return parsed.protocol === "https:" || parsed.protocol === "http:" ? parsed.href : null;
+  } catch {
+    return null;
+  }
+}
+
 export function validateDestinationUrl(value: string): string | null {
   let parsed: URL;
   try {

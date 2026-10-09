@@ -132,6 +132,16 @@ async function logClick({ request, url, link, destination, env }) {
   // salvo — se alguém sobrescreveu na URL, o relatório mostra a verdade.
   const effective = new URL(destination).searchParams;
 
+  // Sem um salt de verdade, sha256("undefined:" + ip) volta pro IP por força
+  // bruta (só existem 2^32 IPv4) — e o README promete que IP nunca fica
+  // guardado. Então: sem salt, o clique é gravado sem ip_hash (só deixa de
+  // contar visitante único) e o erro fica no log. O redirect não muda.
+  const salt = typeof env.IP_HASH_SALT === "string" ? env.IP_HASH_SALT.trim() : "";
+  const saltOk = salt.length >= 8;
+  if (ip && !saltOk) {
+    console.error("IP_HASH_SALT ausente ou curto demais: clique gravado sem ip_hash.");
+  }
+
   const payload = {
     link_id: link.id,
     referrer: referrer,
@@ -145,7 +155,7 @@ async function logClick({ request, url, link, destination, env }) {
     country: request.cf?.country ?? null,
     region: request.cf?.region ?? null,
     city: request.cf?.city ?? null,
-    ip_hash: ip ? await sha256(`${env.IP_HASH_SALT}:${ip}`) : null,
+    ip_hash: ip && saltOk ? await sha256(`${salt}:${ip}`) : null,
     utm_source: effective.get("utm_source"),
     utm_medium: effective.get("utm_medium"),
     utm_campaign: effective.get("utm_campaign"),

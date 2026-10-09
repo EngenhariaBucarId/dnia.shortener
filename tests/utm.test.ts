@@ -10,6 +10,7 @@ import {
   randomSlug,
   validateSlug,
   validateDestinationUrl,
+  safeExternalHref,
   defaultTrafficTypeFor,
   EMPTY_UTMS,
 } from "../src/lib/utm.ts";
@@ -132,6 +133,17 @@ check("valida URL de destino", () => {
   assert.equal(validateDestinationUrl("https://dn.ia"), null);
   assert.ok(validateDestinationUrl("dn.ia"));
   assert.ok(validateDestinationUrl("javascript:alert(1)"));
+});
+check("href de destino vindo do banco só aceita http/https", () => {
+  assert.equal(safeExternalHref("https://dn.ia/x?utm_source=a"), "https://dn.ia/x?utm_source=a");
+  assert.equal(safeExternalHref("http://dn.ia"), "http://dn.ia/");
+  assert.equal(safeExternalHref("javascript:alert(1)"), null);
+  assert.equal(safeExternalHref(" JaVaScRiPt:alert(1)"), null);
+  assert.equal(safeExternalHref("data:text/html;base64,PHNjcmlwdD4="), null);
+  assert.equal(safeExternalHref("vbscript:x"), null);
+  assert.equal(safeExternalHref("/relativo"), null);
+  assert.equal(safeExternalHref(""), null);
+  assert.equal(safeExternalHref(null), null);
 });
 
 console.log(`\n${passed} verificações passaram.\n`);

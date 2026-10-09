@@ -17,6 +17,8 @@ const config: Config = {
         sans: ["Sora", "ui-sans-serif", "system-ui", "sans-serif"],
         mono: ["Sora", "ui-sans-serif", "system-ui", "sans-serif"],
         code: ["ui-monospace", "SFMono-Regular", "Menlo", "Consolas", "monospace"],
+        // Video: display de marca (logo, chamada conceitual). Nunca em texto corrido.
+        brand: ["Video", "Sora", "ui-sans-serif", "sans-serif"],
       },
       colors: {
         border: "hsl(var(--border))",

@@ -4,7 +4,6 @@ import { supabase } from "@/lib/supabase";
 import type { LinkRow, LinkStatsRow } from "@/lib/types";
 import { CreateLinkForm } from "@/components/CreateLinkForm";
 import { LinkList } from "@/components/LinkList";
-import { LinkStats } from "@/components/LinkStats";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatTile } from "@/components/StatTile";
@@ -134,7 +133,6 @@ export default function Dashboard() {
         )}
       </div>
 
-      {selected && <LinkStats link={selected} />}
     </div>
   );
 }

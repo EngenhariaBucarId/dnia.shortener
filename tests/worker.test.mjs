@@ -155,6 +155,33 @@ await check("grava device, browser, os, geo e hash de IP", async () => {
   assert.ok(!JSON.stringify(click).includes("203.0.113.42"));
 });
 
+await check("sem IP_HASH_SALT (ou vazio/curto) grava o clique sem ip_hash e mantém o 302", async () => {
+  const originalError = console.error;
+  console.error = () => {}; // o aviso de salt ausente é esperado aqui
+  try {
+    for (const salt of [undefined, "", "   ", "curto"]) {
+      const captured = mockFetch();
+      const res = await worker.fetch(makeRequest("/x7k2p"), { ...env, IP_HASH_SALT: salt });
+      assert.equal(res.status, 302);
+      assert.equal(res.headers.get("location"), LINK.final_url);
+      assert.equal(captured.inserts.length, 1, "o clique ainda deve ser gravado");
+      assert.equal(captured.inserts[0].ip_hash, null, `salt ${JSON.stringify(salt)} gerou hash`);
+    }
+  } finally {
+    console.error = originalError;
+  }
+});
+
+await check("com salt válido o ip_hash é o SHA-256 de salt + IP, nunca de 'undefined'", async () => {
+  const captured = mockFetch();
+  await worker.fetch(makeRequest("/x7k2p"), env);
+  const { createHash } = await import("node:crypto");
+  const expected = createHash("sha256").update(`${env.IP_HASH_SALT}:203.0.113.42`).digest("hex");
+  const undefinedHash = createHash("sha256").update("undefined:203.0.113.42").digest("hex");
+  assert.equal(captured.inserts[0].ip_hash, expected);
+  assert.notEqual(captured.inserts[0].ip_hash, undefinedHash);
+});
+
 await check("Chrome no desktop é classificado certo", async () => {
   const captured = mockFetch();
   await worker.fetch(makeRequest("/x7k2p", { userAgent: CHROME_UA }), env);
