@@ -1,23 +1,22 @@
-# Configuração pra quem preferir publicar por CLI em vez de colar no painel:
-#   npm install -g wrangler
-#   wrangler login
-#   wrangler secret put SUPABASE_URL
-#   wrangler secret put SUPABASE_SERVICE_ROLE_KEY
-#   wrangler secret put IP_HASH_SALT
-#   wrangler secret put FALLBACK_URL
-#   wrangler deploy
+# Worker de redirect do links.dn.ia em s.dnia.ai.
 #
-# Troque SEUDOMINIO.com pelo seu domínio curto antes do deploy.
+# Publicar (com a conta Cloudflare onde está a zona dnia.ai):
+#   npx wrangler login
+#   npx wrangler secret put SUPABASE_URL
+#   npx wrangler secret put SUPABASE_SECRET_KEY
+#   npx wrangler secret put IP_HASH_SALT
+#   npx wrangler secret put FALLBACK_URL
+#   npx wrangler deploy
+#
+# Os quatro valores entram como secret, nunca aqui — este arquivo vai pro git.
 
 name = "dnia-links-redirect"
 main = "redirect.js"
-compatibility_date = "2025-01-01"
+compatibility_date = "2026-10-01"
 
-# A rota captura TODO caminho do domínio curto — é o domínio dos links,
-# não do painel. O painel fica noutro domínio/subdomínio (ver README).
+# Custom Domain: a Cloudflare cria o DNS e o certificado de s.dnia.ai sozinha
+# (a zona dnia.ai precisa estar na mesma conta). O Worker captura TODO caminho
+# do domínio curto; o painel fica em shortner.dnia.ai, na Vercel.
 routes = [
-  { pattern = "SEUDOMINIO.com/*", zone_name = "SEUDOMINIO.com" }
+  { pattern = "s.dnia.ai", custom_domain = true }
 ]
-
-# Os quatro valores acima entram como secret (wrangler secret put), nunca
-# aqui no arquivo — este arquivo vai pro git.
