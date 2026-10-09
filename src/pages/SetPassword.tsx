@@ -1,46 +1,20 @@
-import { useEffect, useState } from "react";
-import { Link as RouterLink, useNavigate } from "react-router-dom";
-import { Check, X } from "lucide-react";
-import { MIN_PASSWORD_LENGTH, useAuth } from "@/hooks/useAuth";
+import { useEffect } from "react";
+import { Link as RouterLink } from "react-router-dom";
+import { useAuth } from "@/hooks/useAuth";
 import { AuthLayout } from "@/components/AuthLayout";
+import { UpdatePasswordForm } from "@/components/auth/UpdatePasswordForm";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { cn } from "@/lib/utils";
 
 /**
- * Definir senha — serve pros dois links que chegam por e-mail:
- *   - convite (primeiro acesso): a pessoa cria a senha dela;
- *   - recuperação ("esqueci a senha"): cria uma senha nova.
- * Nos dois casos o link já abre uma sessão; aqui só se troca a senha dela.
+ * Definir senha — destino dos dois links que chegam por e-mail (convite e
+ * "esqueci a senha"). Os dois já abrem uma sessão; aqui só se troca a senha.
  */
 export default function SetPassword() {
-  const { session, loading, updatePassword } = useAuth();
-  const navigate = useNavigate();
-  const [password, setPassword] = useState("");
-  const [confirm, setConfirm] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { session, loading } = useAuth();
 
   useEffect(() => {
     document.title = "Definir senha · links.dn.ia";
   }, []);
-
-  const longEnough = password.length >= MIN_PASSWORD_LENGTH;
-  const matches = password.length > 0 && password === confirm;
-
-  async function handleSubmit(event: React.FormEvent) {
-    event.preventDefault();
-    if (!longEnough) return setError(`A senha precisa de pelo menos ${MIN_PASSWORD_LENGTH} caracteres.`);
-    if (!matches) return setError("As duas senhas não são iguais.");
-
-    setSaving(true);
-    setError(null);
-    const { error: updateError } = await updatePassword(password);
-    setSaving(false);
-    if (updateError) return setError("Não foi possível salvar a senha. Peça um link novo e tente de novo.");
-    navigate("/", { replace: true });
-  }
 
   if (loading) {
     return (
@@ -79,56 +53,7 @@ export default function SetPassword() {
         </>
       }
     >
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div>
-          <Label htmlFor="new-password">Nova senha</Label>
-          <Input
-            id="new-password"
-            type="password"
-            autoComplete="new-password"
-            required
-            autoFocus
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-          />
-        </div>
-        <div>
-          <Label htmlFor="confirm-password">Repita a senha</Label>
-          <Input
-            id="confirm-password"
-            type="password"
-            autoComplete="new-password"
-            required
-            value={confirm}
-            onChange={(e) => setConfirm(e.target.value)}
-          />
-        </div>
-
-        <ul className="space-y-1 text-[12px]">
-          {[
-            { ok: longEnough, label: `Pelo menos ${MIN_PASSWORD_LENGTH} caracteres` },
-            { ok: matches, label: "As duas senhas iguais" },
-          ].map((rule) => (
-            <li
-              key={rule.label}
-              className={cn("flex items-center gap-1.5", rule.ok ? "text-success" : "text-muted-foreground")}
-            >
-              {rule.ok ? <Check className="h-3.5 w-3.5" /> : <X className="h-3.5 w-3.5" />}
-              {rule.label}
-            </li>
-          ))}
-        </ul>
-
-        {error && (
-          <p role="alert" className="text-[13px] text-destructive">
-            {error}
-          </p>
-        )}
-
-        <Button type="submit" className="w-full" disabled={saving}>
-          {saving ? "Salvando…" : "Salvar senha e entrar"}
-        </Button>
-      </form>
+      <UpdatePasswordForm />
     </AuthLayout>
   );
 }

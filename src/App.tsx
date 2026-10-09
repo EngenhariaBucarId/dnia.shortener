@@ -1,4 +1,4 @@
-import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { LogOut, ShieldOff } from "lucide-react";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import { AppShell } from "@/components/AppShell";
@@ -59,9 +59,14 @@ function Protected({
   adminOnly?: boolean;
 }) {
   const { session, role, isAdmin, loading, recovering } = useAuth();
+  const location = useLocation();
 
   if (loading) return <FullScreenLoading />;
-  if (!session) return <Navigate to="/login" replace />;
+  if (!session) {
+    // Volta pra página pedida depois do login (validada pelo safeNextPath).
+    const next = encodeURIComponent(location.pathname + location.search);
+    return <Navigate to={`/login?next=${next}`} replace />;
+  }
   if (recovering) return <Navigate to="/definir-senha" replace />;
   if (!role) return <NoAccess />;
   if (adminOnly && !isAdmin) return <Navigate to="/" replace />;

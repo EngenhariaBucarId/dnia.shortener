@@ -58,13 +58,19 @@ entende melhor, o que torna o remix limpo.
 
 ## Setup
 
+> Colocando em produção (Supabase, Vercel e Cloudflare)? Siga
+> [`docs/producao/ROTEIRO.md`](docs/producao/ROTEIRO.md).
+
 ### 1. Supabase
 
 1. Crie um projeto em supabase.com.
-2. **SQL Editor > New query**, cole `supabase/schema.sql` e rode. É idempotente,
-   pode rodar de novo sem quebrar nada. Ele cria as tabelas, a lista de membros
-   do time (`members`), as policies e o bucket `bio-media` (Storage) das fotos
-   da bio — rode de novo sempre que o schema mudar.
+2. **Aplique as migrações** de `supabase/migrations/`, em ordem (pelo SQL
+   Editor, colando cada arquivo, ou `supabase db push` com a CLI). Elas criam
+   as tabelas, a lista de membros do time (`members`), as policies e o bucket
+   `bio-media`. Depois, rode `supabase/tests/rls.sql`: o resultado esperado é
+   um erro com a mensagem `OK: 14 verificações de RLS` (o teste desfaz tudo o
+   que cria). `supabase/schema.sql` é só um retrato legível do resultado —
+   mudança nova entra como migração nova.
 3. **Desligue o cadastro público.** Em **Authentication > Sign In / Providers**,
    desative *Allow new users to sign up* e *Allow anonymous sign-ins*, e deixe
    o provedor **Email** ligado (é o login com senha). Desde a versão com tabela

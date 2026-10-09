@@ -18,23 +18,29 @@
  *   1. Workers & Pages > Create > Create Worker > cole este arquivo.
  *   2. Settings > Variables and Secrets > adicione como SECRET:
  *        SUPABASE_URL              https://SEU-PROJETO.supabase.co
- *        SUPABASE_SERVICE_ROLE_KEY a service_role key do projeto
+ *        SUPABASE_SECRET_KEY       chave secreta nova (sb_secret_...) só pro Worker
  *        IP_HASH_SALT              valor aleatório (openssl rand -hex 16)
- *        FALLBACK_URL              onde cair se o link não existir (ex: https://dn.ia)
+ *        FALLBACK_URL              onde cair se o link não existir (ex: https://dnia.ai)
  *   3. Settings > Domains & Routes > Add > seu domínio curto (seudominio.com/*).
  *
- * A service_role key só existe aqui, no servidor — nunca chega no navegador.
+ * A chave secreta só existe aqui, no servidor — nunca chega no navegador.
  */
 
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
-    const slug = decodeURIComponent(url.pathname.replace(/^\/+/, "")).trim();
+    const fallback = env.FALLBACK_URL || "https://dnia.ai";
 
-    const fallback = env.FALLBACK_URL || "https://dn.ia";
+    let slug;
+    try {
+      slug = decodeURIComponent(url.pathname.replace(/^\/+/, "")).trim();
+    } catch {
+      // %-escape malformado: não é link nosso, vai pro site.
+      return redirect(fallback);
+    }
 
     if (!slug || slug === "favicon.ico" || slug === "robots.txt") {
-      return Response.redirect(fallback, 302);
+      return redirect(fallback);
     }
 
     // Página de link na bio: dominio.com/@rodrigo
@@ -51,15 +57,15 @@ export default {
       console.error("Falha ao consultar o link:", err);
       // Se o banco está fora, é melhor mandar a pessoa pro site do que
       // mostrar erro — ela clicou num link de campanha, não num app.
-      return Response.redirect(fallback, 302);
+      return redirect(fallback);
     }
 
     if (!link || !link.is_active) {
-      return Response.redirect(fallback, 302);
+      return redirect(fallback);
     }
 
     if (link.expires_at && new Date(link.expires_at) < new Date()) {
-      return Response.redirect(fallback, 302);
+      return redirect(fallback);
     }
 
     const destination = mergeParams(link.final_url, url.searchParams);
@@ -71,9 +77,29 @@ export default {
       console.error("Falha ao registrar clique:", err)
     );
 
-    return Response.redirect(destination, 302);
+    return redirect(destination);
   },
 };
+
+/**
+ * Cabeçalhos pro Supabase. A chave nova (sb_secret_...) NÃO é JWT: vai só no
+ * apikey — mandada como Bearer, o Supabase recusa. A service_role legada é
+ * JWT e continua indo nos dois, pra compatibilidade.
+ */
+export function supabaseHeaders(env, extra = {}) {
+  const key = env.SUPABASE_SECRET_KEY || env.SUPABASE_SERVICE_ROLE_KEY || "";
+  const headers = { apikey: key, ...extra };
+  if (key.startsWith("eyJ")) headers.Authorization = `Bearer ${key}`;
+  return headers;
+}
+
+/** 302 sem cache: desativar um link vale na hora, mesmo com cache na borda. */
+function redirect(location) {
+  return new Response(null, {
+    status: 302,
+    headers: { Location: new URL(location).toString(), "Cache-Control": "no-store" },
+  });
+}
 
 async function fetchLink(slug, env) {
   const endpoint =
@@ -83,11 +109,7 @@ async function fetchLink(slug, env) {
     `&limit=1`;
 
   const response = await fetch(endpoint, {
-    headers: {
-      apikey: env.SUPABASE_SERVICE_ROLE_KEY,
-      Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`,
-      Accept: "application/json",
-    },
+    headers: supabaseHeaders(env, { Accept: "application/json" }),
   });
 
   if (!response.ok) {
@@ -168,12 +190,10 @@ async function logClick({ request, url, link, destination, env }) {
 
   const response = await fetch(`${env.SUPABASE_URL}/rest/v1/clicks`, {
     method: "POST",
-    headers: {
-      apikey: env.SUPABASE_SERVICE_ROLE_KEY,
-      Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`,
+    headers: supabaseHeaders(env, {
       "Content-Type": "application/json",
       Prefer: "return=minimal",
-    },
+    }),
     body: JSON.stringify(payload),
   });
 
@@ -272,11 +292,7 @@ async function sha256(text) {
 // caminho de rastreamento do resto.
 
 async function renderBioPage(pageSlug, env, fallback) {
-  const headers = {
-    apikey: env.SUPABASE_SERVICE_ROLE_KEY,
-    Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`,
-    Accept: "application/json",
-  };
+  const headers = supabaseHeaders(env, { Accept: "application/json" });
 
   let page;
   let items;
@@ -291,7 +307,7 @@ async function renderBioPage(pageSlug, env, fallback) {
     if (!pageRes.ok) throw new Error(`bio_pages ${pageRes.status}`);
     page = (await pageRes.json())[0];
 
-    if (!page) return Response.redirect(fallback, 302);
+    if (!page) return redirect(fallback);
 
     const itemsRes = await fetch(
       `${env.SUPABASE_URL}/rest/v1/bio_page_items` +
@@ -303,7 +319,7 @@ async function renderBioPage(pageSlug, env, fallback) {
     items = await itemsRes.json();
   } catch (err) {
     console.error("Falha ao montar a página de bio:", err);
-    return Response.redirect(fallback, 302);
+    return redirect(fallback);
   }
 
   const html = bioPageHtml(page, items ?? []);

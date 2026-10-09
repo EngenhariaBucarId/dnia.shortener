@@ -4,7 +4,7 @@ import worker, { bioPageHtml } from "../cloudflare-worker/redirect.js";
 
 const env = {
   SUPABASE_URL: "https://proj.supabase.co",
-  SUPABASE_SERVICE_ROLE_KEY: "service-role-key",
+  SUPABASE_SECRET_KEY: "sb_secret_teste",
   IP_HASH_SALT: "salt-de-teste",
   FALLBACK_URL: "https://dn.ia",
 };
@@ -31,7 +31,7 @@ function mockFetch({ page = PAGE, items = ITEMS, failOn = null } = {}) {
     }
 
     if (href.includes("/rest/v1/bio_pages")) {
-      assert.equal(options.headers?.apikey, env.SUPABASE_SERVICE_ROLE_KEY);
+      assert.equal(options.headers?.apikey, env.SUPABASE_SECRET_KEY);
       return new Response(JSON.stringify(page ? [page] : []), { status: 200 });
     }
 

@@ -13,10 +13,13 @@
 //   PANEL_URL  URL do painel, sem barra no fim (ex.: https://painel.dnia.ai).
 //              É pra onde o link do e-mail de convite leva e a única origem
 //              aceita pelo CORS.
+//   EXTRA_ORIGINS  opcional: outras origens aceitas, separadas por vírgula
+//                  (ex.: http://localhost:8080 pra testar o convite no dev).
 // SUPABASE_URL, SUPABASE_ANON_KEY e SUPABASE_SERVICE_ROLE_KEY o próprio
 // Supabase injeta em toda Edge Function.
 
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { allowedOrigins } from "./origins.ts";
 
 const ROLES = new Set(["admin", "membro"]);
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -26,11 +29,12 @@ const PANEL_URL = (Deno.env.get("PANEL_URL") ?? "").replace(/\/+$/, "");
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const ORIGINS = allowedOrigins(PANEL_URL, Deno.env.get("EXTRA_ORIGINS"));
 
 function cors(origin: string | null): Record<string, string> {
-  // Só o painel conversa com esta função. Origem desconhecida não recebe o
-  // cabeçalho, e o navegador bloqueia a resposta.
-  return origin && PANEL_URL && origin === PANEL_URL
+  // Só o painel (e as origens extras do dev) conversa com esta função. Origem
+  // desconhecida não recebe o cabeçalho, e o navegador bloqueia a resposta.
+  return origin && ORIGINS.has(origin)
     ? {
         "Access-Control-Allow-Origin": origin,
         "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",

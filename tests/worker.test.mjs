@@ -5,7 +5,7 @@ import worker from "../cloudflare-worker/redirect.js";
 
 const env = {
   SUPABASE_URL: "https://proj.supabase.co",
-  SUPABASE_SERVICE_ROLE_KEY: "service-role-key",
+  SUPABASE_SECRET_KEY: "sb_secret_teste",
   IP_HASH_SALT: "salt-de-teste",
   FALLBACK_URL: "https://dn.ia",
 };
@@ -27,7 +27,9 @@ function mockFetch({ link = LINK } = {}) {
 
     if (href.includes("/rest/v1/links")) {
       // confere que a service_role key está sendo usada (e não a anon)
-      assert.equal(options.headers?.apikey, env.SUPABASE_SERVICE_ROLE_KEY);
+      // chave nova vai só no apikey; não é JWT, então nada de Bearer
+      assert.equal(options.headers?.apikey, env.SUPABASE_SECRET_KEY);
+      assert.equal(options.headers?.Authorization, undefined);
       return new Response(JSON.stringify(link ? [link] : []), { status: 200 });
     }
 
@@ -221,6 +223,55 @@ await check("raiz do domínio vai pro fallback sem registrar clique", async () =
   const res = await worker.fetch(makeRequest("/"), env);
   assert.equal(res.headers.get("location"), "https://dn.ia/");
   assert.equal(captured.inserts.length, 0);
+});
+
+await check("service_role legada (JWT) vai também no Authorization", async () => {
+  const legacy = "eyJhbGciOiJIUzI1NiJ9.e30.assinatura";
+  let seen = null;
+  globalThis.fetch = async (url, options = {}) => {
+    const href = typeof url === "string" ? url : url.toString();
+    if (href.includes("/rest/v1/links")) {
+      seen = options.headers;
+      return new Response(JSON.stringify([LINK]), { status: 200 });
+    }
+    return new Response("", { status: 201 });
+  };
+  const legacyEnv = { ...env, SUPABASE_SECRET_KEY: undefined, SUPABASE_SERVICE_ROLE_KEY: legacy };
+  await worker.fetch(makeRequest("/x7k2p"), legacyEnv);
+  assert.equal(seen.apikey, legacy);
+  assert.equal(seen.Authorization, `Bearer ${legacy}`);
+});
+
+await check("redirects levam Cache-Control: no-store", async () => {
+  mockFetch();
+  const ok = await worker.fetch(makeRequest("/x7k2p"), env);
+  assert.equal(ok.headers.get("cache-control"), "no-store");
+  mockFetch({ link: null });
+  const fallback = await worker.fetch(makeRequest("/nao-existe"), env);
+  assert.equal(fallback.headers.get("cache-control"), "no-store");
+});
+
+await check("% malformado no caminho cai no fallback, sem erro 500", async () => {
+  mockFetch();
+  const res = await worker.fetch(makeRequest("/%E0%A4%A"), env);
+  assert.equal(res.status, 302);
+  assert.equal(res.headers.get("location"), "https://dn.ia/");
+});
+
+await check("sem nenhuma chave configurada, link cai no fallback sem exceção", async () => {
+  globalThis.fetch = async (url, options = {}) => {
+    // o Supabase recusa requisição sem apikey válida
+    return options.headers?.apikey ? new Response("[]", { status: 200 }) : new Response("", { status: 401 });
+  };
+  const originalError = console.error;
+  console.error = () => {};
+  try {
+    const res = await worker.fetch(makeRequest("/x7k2p"), { ...env, SUPABASE_SECRET_KEY: undefined });
+    assert.equal(res.status, 302);
+    assert.equal(res.headers.get("location"), "https://dn.ia/");
+  } finally {
+    console.error = originalError;
+  }
 });
 
 console.log(`\n${passed} verificações passaram.\n`);
