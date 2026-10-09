@@ -219,6 +219,23 @@ await check("logo da empresa substitui o texto dn.ia no rodapé", async () => {
   assert.ok(!html.includes('onerror="alert'), "logo furou o atributo src");
 });
 
+await check("página arquivada não é servida: a consulta só pede páginas ativas", async () => {
+  let pageQuery = "";
+  globalThis.fetch = async (url) => {
+    const href = typeof url === "string" ? url : url.toString();
+    if (href.includes("/rest/v1/bio_pages")) {
+      pageQuery = href;
+      // o banco filtra is_active=eq.true; uma arquivada não volta na consulta
+      return new Response("[]", { status: 200 });
+    }
+    throw new Error(`fetch inesperado: ${href}`);
+  };
+  const res = await worker.fetch(request("/@rodrigo"), env);
+  assert.match(pageQuery, /is_active=eq\.true/);
+  assert.equal(res.status, 302);
+  assert.equal(res.headers.get("location"), "https://dn.ia/");
+});
+
 await check("modo preview do painel não gera link clicável", async () => {
   const html = bioPageHtml(PAGE, ITEMS, { preview: true });
   assert.ok(!html.includes('href="/abc1234"'), "preview com href rastreado");
